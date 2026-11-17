@@ -1,0 +1,18 @@
+# Generated datasets
+data/processed/
+data/splits/
+
+# Generated experiment results
+results/
+
+# Python
+__pycache__/
+*.pyc
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Virtual environments
+venv/
+rag/
+.env
