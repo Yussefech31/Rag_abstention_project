@@ -1,0 +1,114 @@
+%% ============================================================
+%% Chapter 1 — Introduction
+%% ============================================================
+\chapter{Introduction}
+\label{chap:introduction}
+
+\section{Motivation}
+\label{sec:intro_motivation}
+
+The proliferation of large-scale neural language models has enabled Question
+Answering (QA) systems of remarkable fluency. Modern systems based on
+Transformer architectures \cite{devlin2019bert,liu2019roberta} can produce
+grammatically well-formed, contextually plausible responses even in the absence
+of genuine evidence. This phenomenon—commonly called \emph{hallucination}—is
+particularly acute in \emph{Retrieval-Augmented Generation} (RAG) pipelines
+\cite{lewis2020rag}, where a retrieval module first fetches candidate passages
+from a corpus and a neural reader then extracts or synthesises an answer.
+
+When the retrieval step returns irrelevant or empty passages, the reader
+operates on a flawed context. Rather than signalling uncertainty, it often
+fabricates an answer—a failure mode with potentially severe consequences in
+high-stakes domains such as medicine, law, and education. Consider a clinical
+decision-support system queried about a rare drug interaction: an overconfident
+but wrong answer can mislead a clinician, while an honest ``I do not know''
+prompts the user to consult authoritative sources.
+
+The core tension is therefore between \emph{coverage} (answering as many
+questions as possible) and \emph{precision} (ensuring that answers provided are
+correct). An ideal system navigates this trade-off gracefully by choosing to
+\emph{abstain}—withhold an answer—precisely when its internal evidence is
+insufficient. This capacity for principled abstention is the focus of the
+present work.
+
+\section{Research Question}
+\label{sec:intro_rq}
+
+We ask:
+
+\begin{quote}
+  \textit{How can a Retrieval-Augmented QA pipeline accurately detect
+  unanswerable questions and abstain, thereby reducing false answers while
+  preserving useful coverage on answerable questions?}
+\end{quote}
+
+Concretely, we investigate whether signals derived from BM25 retrieval scores
+and reader confidence scores can—individually or jointly—serve as reliable
+proxies for answerability, and how a lightweight classifier combining these
+features compares to simpler threshold-based heuristics.
+
+\section{Contributions}
+\label{sec:intro_contributions}
+
+This work makes the following contributions:
+
+\begin{enumerate}
+  \item \textbf{Systematic feature engineering for answerability.}  We identify
+        and extract eleven features from BM25 retrieval and RoBERTa
+        reader outputs that jointly characterise the likelihood that a question
+        is answerable from the retrieved context.
+
+  \item \textbf{Three-strategy comparison.}  We design and evaluate three
+        abstention strategies of increasing complexity—a \emph{non-abstaining
+        baseline}, a \emph{BM25 score threshold}, and a \emph{logistic
+        regression answerability classifier}—on a held-out test partition of
+        SQuAD~2.0.
+
+  \item \textbf{Rigorous experimental protocol.}  We introduce an
+        \emph{article-level} train/validation/test split to prevent context
+        leakage, tune all hyper-parameters exclusively on the validation set,
+        and evaluate on a fully unseen test set.
+
+  \item \textbf{Error taxonomy.}  We categorise system errors into retrieval
+        failures, extraction failures, and classification failures, providing
+        qualitative examples that illuminate the remaining challenges.
+\end{enumerate}
+
+\section{Outline of the Three Abstention Strategies}
+\label{sec:intro_strategies}
+
+\paragraph{Strategy 1 — Always Answer (Baseline).}
+The system always passes the top-retrieved passage to the reader and returns
+whatever answer it produces, without any abstention mechanism. This represents
+standard RAG behaviour and sets the precision/coverage upper and lower bounds,
+respectively.
+
+\paragraph{Strategy 2 — BM25 Threshold.}
+If the BM25 score of the top-retrieved passage exceeds a threshold $\tau$
+(tuned on the validation set by maximising F1), the system answers; otherwise
+it abstains. This strategy leverages a single, interpretable retrieval signal.
+
+\paragraph{Strategy 3 — Answerability Classifier.}
+A logistic regression model is trained on eleven features drawn from BM25
+retrieval and reader outputs. It predicts a probability of answerability; if
+this probability exceeds a threshold (again tuned on validation), the system
+answers. This strategy combines complementary signals and can capture
+non-linear interactions among them.
+
+\section{Report Structure}
+\label{sec:intro_structure}
+
+The remainder of this report is organised as follows.
+Chapter~\ref{chap:background} reviews the relevant literature on reading
+comprehension datasets, sparse retrieval, Transformer-based QA, and selective
+prediction.
+Chapter~\ref{chap:methodology} details the experimental methodology, including
+dataset preparation, feature extraction, and strategy definitions.
+Chapter~\ref{chap:architecture} presents the end-to-end system architecture.
+Chapter~\ref{chap:experiments} describes the experimental setup and evaluation
+protocol.
+Chapter~\ref{chap:results} reports quantitative results and discusses figure
+evidence.
+Chapter~\ref{chap:error_analysis} provides a qualitative error analysis.
+Chapter~\ref{chap:discussion} situates findings in the broader research context.
+Chapter~\ref{chap:conclusion} concludes and outlines directions for future work.

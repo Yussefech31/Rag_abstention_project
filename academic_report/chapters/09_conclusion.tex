@@ -1,0 +1,47 @@
+%% ============================================================
+%% Chapter 9 — Conclusion and Future Work
+%% ============================================================
+\chapter{Conclusion and Future Work}
+\label{chap:conclusion}
+
+\section{Summary of Contributions}
+\label{sec:conclusion_summary}
+
+In this research project, we addressed the critical vulnerability of Retrieval-Augmented Generation (RAG) systems: their propensity to hallucinate and generate false answers when retrieved documents contain insufficient evidence. We framed abstention as a selective prediction challenge and systematically evaluated three gating strategies on the SQuAD~2.0 benchmark using a controlled pipeline combining BM25 retrieval and a RoBERTa-based extractive reader.
+
+Our key findings and contributions are summarised as follows:
+
+\begin{enumerate}
+  \item \textbf{Empirical Refutation of Retrieval-Only Gating:} We demonstrated that gating abstention on top BM25 scores alone is largely ineffective ($F_1 = 0.6486$, virtually identical to the Always Answer baseline of $0.6505$). Lexical retrieval metrics measure term matching rather than factual sufficiency, failing to separate answerable from unanswerable queries designed with high surface overlap.
+  
+  \item \textbf{Superiority of Combined Feature Classifiers:} By engineering an 11-dimensional feature vector combining sparse retrieval dynamics, span lengths, and reader confidence probabilities, a lightweight Logistic Regression classifier achieved an answerability $F_1$ score of $\mathbf{0.8543}$, with precision of $\mathbf{0.8231}$ and recall of $\mathbf{0.8880}$ on held-out test data.
+  
+  \item \textbf{Dramatic Reduction of Hallucination Risk:} The Answerability Classifier reduced the false-answer rate from $1.0000$ to $\mathbf{0.1776}$, while concurrently increasing the exact match (EM) of accepted answers from $0.6432$ to $\mathbf{0.7103}$ and token-$F_1$ from $0.7369$ to $\mathbf{0.8130}$.
+  
+  \item \textbf{Comprehensive Pipeline Implementation:} We provided a fully reproducible, leak-free pipeline implementing article-grouped data splitting, BM25 indexing, RoBERTa span extraction, validation-driven threshold optimization, and an in-depth error taxonomy.
+\end{enumerate}
+
+\section{Limitations}
+\label{sec:conclusion_limitations}
+
+Despite these positive outcomes, our study has certain boundaries:
+\begin{itemize}
+  \item \textbf{Lexical Retrieval Baseline:} The retriever was restricted to sparse BM25 indexing. While BM25 provides an interpretable and robust baseline, modern hybrid systems integrate dense semantic embeddings.
+  \item \textbf{Fixed Extractive Reader:} The reader was constrained to span extraction, which naturally restricts candidate answers to substrings of the context. Generative models introduce additional failure modes that warrant dedicated investigation.
+  \item \textbf{Dataset Scope:} Evaluation was conducted on a curated $500$-sample test subset due to CPU inference constraints, representing a single English benchmark (SQuAD~2.0).
+\end{itemize}
+
+\section{Future Research Directions}
+\label{sec:conclusion_future}
+
+Building upon the insights gained in this study, future research should explore the following avenues:
+
+\begin{itemize}
+  \item \textbf{Dense and Hybrid Retrieval Gating:} Integrating dense bi-encoder representations (e.g., Contriever, BGE) and hybrid dense-sparse scoring to examine whether semantic embeddings offer superior abstention signals compared to BM25 alone.
+  
+  \item \textbf{Cross-Encoder Reranking as an Abstention Feature:} Employing fine-grained cross-attention rerankers (such as BGE-Reranker or MonoT5) whose token-level interaction scores could serve as powerful features for the answerability classifier.
+  
+  \item \textbf{Natural Language Inference (NLI) Verification:} Incorporating an explicit NLI verification step (e.g., verifying whether the retrieved passage entails the generated answer) as a secondary validation filter.
+  
+  \item \textbf{Extension to Autoregressive LLMs:} Evaluating selective abstention on generative models (e.g., LLaMA-3, Mistral-7B) through self-consistency entropy, semantic uncertainty measures, and verbalized confidence calibration.
+\end{itemize}

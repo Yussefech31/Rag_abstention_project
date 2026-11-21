@@ -1,18 +1,125 @@
-# Generated datasets
+# ==============================================================================
+# Git Ignore Configuration — RAG Abstention Research
+# ==============================================================================
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+rag/
+env.bak/
+venv.bak/
+
+# Environment Variables & Local Configs
+.env
+.env.local
+.env.*.local
+*.env
+*.key
+*.pem
+
+# Jupyter Notebook Checkpoints & Temporary Files
+.ipynb_checkpoints/
+*-checkpoint.ipynb
+*.nbconvert/
+
+# Unit Test & Coverage Caches
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# Large Datasets (Raw SQuAD 2.0 dumps & Processed Parquet/CSV)
+data/raw/*.json
 data/processed/
 data/splits/
+*.parquet
+*.feather
 
-# Generated experiment results
+# Large Model Checkpoints & Serialized Artifacts
+# models/*.bin
+# models/*.pt
+# models/*.onnx
+
+# Generated Experiment Results & Run Outputs
 results/
+experiments/
 
-# Python
-__pycache__/
-*.pyc
+# LaTeX Auxiliary Build Files (Keep .tex, .bib, .png, .pdf, README.md)
+academic_report/*.aux
+academic_report/*.bbl
+academic_report/*.blg
+academic_report/*.lof
+academic_report/*.log
+academic_report/*.lot
+academic_report/*.out
+academic_report/*.toc
+academic_report/*.synctex.gz
+academic_report/*.fdb_latexmk
+academic_report/*.fls
+academic_report/*.nav
+academic_report/*.snm
+academic_report/*.vrb
 
-# Jupyter
-.ipynb_checkpoints/
+*.aux
+*.bbl
+*.blg
+*.lof
+*.log
+*.lot
+*.out
+*.toc
+*.synctex.gz
+*.fdb_latexmk
+*.fls
 
-# Virtual environments
-venv/
-rag/
-.env
+# IDEs & Code Editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini

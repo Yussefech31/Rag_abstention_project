@@ -1,0 +1,215 @@
+%% ============================================================
+%% main.tex — Knowing When Not to Answer:
+%%            Abstention in Retrieval-Augmented Question Answering
+%% Authors   : Youssef Ech-Chahlaoui, Zouhair Fezzaz
+%% Supervisor: Anas Belcaid
+%% Institution: ENSA Tétouan — Université Abdelmalek Essaâdi
+%% Academic year: 2026–2027
+%% ============================================================
+\documentclass[12pt,a4paper]{report}
+
+%% ---- Encoding & language ------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+
+%% ---- Page geometry ------------------------------------------
+\usepackage[top=2.5cm, bottom=2.5cm, left=3cm, right=2.5cm]{geometry}
+
+%% ---- Graphics -----------------------------------------------
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+
+%% ---- Mathematics --------------------------------------------
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+%% ---- Tables -------------------------------------------------
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+
+%% ---- Captions -----------------------------------------------
+\usepackage{caption}
+\usepackage{subcaption}
+
+%% ---- Floats -------------------------------------------------
+\usepackage{float}
+
+%% ---- Spacing ------------------------------------------------
+\usepackage{setspace}
+\onehalfspacing
+
+%% ---- Header / footer ----------------------------------------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\nouppercase{\leftmark}}
+\fancyhead[R]{\small ENSA Tétouan}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+%% ---- Colours ------------------------------------------------
+\usepackage{xcolor}
+\definecolor{deepblue}{RGB}{0,0,180}
+\definecolor{codegreen}{RGB}{0,128,0}
+\definecolor{codegray}{RGB}{128,128,128}
+\definecolor{codebackground}{RGB}{245,245,245}
+
+%% ---- Source code listings -----------------------------------
+\usepackage{listings}
+\lstset{
+  backgroundcolor=\color{codebackground},
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{deepblue}\bfseries,
+  commentstyle=\color{codegreen}\itshape,
+  stringstyle=\color{orange},
+  numberstyle=\tiny\color{codegray},
+  numbers=left,
+  stepnumber=1,
+  numbersep=8pt,
+  breaklines=true,
+  captionpos=b,
+  frame=single,
+  rulecolor=\color{codegray},
+  tabsize=4,
+  showstringspaces=false,
+}
+
+%% ---- Algorithms ---------------------------------------------
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\algrenewcommand\algorithmicrequire{\textbf{Input:}}
+\algrenewcommand\algorithmicensure{\textbf{Output:}}
+
+%% ---- TikZ & PGFPlots ----------------------------------------
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds, shadows}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+%% ---- Hyperlinks ---------------------------------------------
+\usepackage[colorlinks=true,
+            linkcolor=deepblue,
+            citecolor=deepblue,
+            urlcolor=deepblue,
+            bookmarks=true,
+            bookmarksnumbered=true,
+            pdftitle={Knowing When Not to Answer: Abstention in RAG-QA},
+            pdfauthor={Youssef Ech-Chahlaoui, Zouhair Fezzaz}]{hyperref}
+
+%% ---- Bibliography -------------------------------------------
+\usepackage[numbers,sort&compress]{natbib}
+
+%% ---- Utility macros -----------------------------------------
+\newcommand{\INSERT}[1]{\colorbox{yellow!50}{\textbf{[INSERT: #1]}}}
+\newcommand{\todo}[1]{\textcolor{red}{\textbf{TODO: #1}}}
+
+%% =============================================================
+\begin{document}
+
+%% ---- Title Page ---------------------------------------------
+\begin{titlepage}
+  \begin{center}
+    \vspace*{0.5cm}
+
+    {\Large \textbf{Université Abdelmalek Essaâdi}}\\[0.3cm]
+    {\large École Nationale des Sciences Appliquées de Tétouan}\\[0.1cm]
+    {\large (ENSA Tétouan)}\\[1.5cm]
+
+    \includegraphics[width=4cm]{ensa_logo}\\[1.2cm]
+
+    \hrule height 1pt
+    \vspace{0.4cm}
+    {\LARGE \textbf{Knowing When Not to Answer:}}\\[0.3cm]
+    {\LARGE \textbf{Abstention in Retrieval-Augmented}}\\[0.3cm]
+    {\LARGE \textbf{Question Answering}}
+    \vspace{0.4cm}
+    \hrule height 1pt
+
+    \vspace{1.5cm}
+
+    {\large \textit{Research Report — Master / Engineering Programme}}\\[1.5cm]
+
+    \begin{minipage}{0.48\textwidth}
+      \begin{flushleft}
+        \textbf{Authors:}\\
+        Youssef \textsc{Ech-Chahlaoui}\\
+        Zouhair \textsc{Fezzaz}
+      \end{flushleft}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.48\textwidth}
+      \begin{flushright}
+        \textbf{Supervisor:}\\
+        Prof.\ Anas \textsc{Belcaid}
+      \end{flushright}
+    \end{minipage}
+
+    \vfill
+
+    {\large Academic Year: 2026--2027}
+
+  \end{center}
+\end{titlepage}
+
+%% ---- Abstract -----------------------------------------------
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+\markboth{Abstract}{Abstract}
+
+Retrieval-Augmented Generation (RAG) systems couple a retrieval module with a
+neural reader to answer open-domain questions from a dynamic corpus. While
+powerful, such systems frequently hallucinate plausible-sounding answers when
+the retrieved context does not contain the required information. This work
+investigates \emph{abstention}—the capacity of a system to withhold an answer
+when it is likely to be wrong—as a principled remedy.
+
+We conduct experiments on SQuAD~2.0 \cite{rajpurkar2018squad2}, a benchmark
+that explicitly includes unanswerable questions, using BM25
+\cite{robertson2009bm25} as the retrieval backbone and a
+\texttt{deepset/roberta-base-squad2} reader \cite{liu2019roberta}. Three
+strategies of increasing sophistication are compared: (i)~an \emph{Always
+Answer} baseline that never abstains; (ii)~a~\emph{BM25 Threshold} strategy
+that abstains when the top retrieval score falls below a validation-tuned
+cut-off; and (iii)~an~\emph{Answerability Classifier} that combines eleven
+retrieval and reader features in a logistic regression to predict
+answerability before committing to a response.
+
+Results show that selective abstention substantially reduces the
+false-answer rate while maintaining acceptable coverage, with the learned
+classifier outperforming the single-feature BM25 threshold on the held-out test
+set. We provide a detailed error taxonomy and discuss practical implications
+for deploying RAG systems in high-stakes environments.
+
+\bigskip
+\noindent\textbf{Keywords:} Retrieval-Augmented Generation, Question Answering,
+Abstention, Selective Prediction, BM25, RoBERTa, SQuAD~2.0, Answerability
+Classification.
+
+%% ---- Table of Contents etc. ---------------------------------
+\tableofcontents
+\listoffigures
+\listoftables
+
+%% ---- Chapters -----------------------------------------------
+\input{chapters/01_introduction}
+\input{chapters/02_background}
+\input{chapters/03_methodology}
+\input{chapters/04_architecture}
+\input{chapters/05_experiments}
+\input{chapters/06_results}
+\input{chapters/07_error_analysis}
+\input{chapters/08_discussion}
+\input{chapters/09_conclusion}
+
+%% ---- Appendices ---------------------------------------------
+\appendix
+\input{appendices/appendix_a}
+
+%% ---- Bibliography -------------------------------------------
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}

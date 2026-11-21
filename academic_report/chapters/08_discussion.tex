@@ -1,0 +1,49 @@
+%% ============================================================
+%% Chapter 8 — Discussion
+%% ============================================================
+\chapter{Discussion}
+\label{chap:discussion}
+
+\section{Information Value of Retrieval Confidence vs Reader Confidence}
+\label{sec:disc_info_value}
+
+A central question posed at the outset of this investigation was whether sparse retrieval signals alone provide sufficient discriminative power to guide abstention decisions in retrieval-augmented question answering. Our empirical results provide a decisive answer: \textbf{BM25 scores alone are fundamentally inadequate for gating answerability.}
+
+As shown by the comparison between the \emph{Always Answer} baseline and the \emph{BM25 Threshold} strategy in Table~\ref{tab:strategy_comparison}, thresholding on the top BM25 score yielded an answerability $F_1$ of $0.6486$, representing virtually no improvement over the naïve baseline of $0.6505$. More strikingly, the optimal threshold tuned on the validation set resulted in abstaining on only a single question in the entire test set (achieving $0.998$ coverage and a false-answer rate of $1.0000$). 
+
+The underlying reason for this failure stems from the nature of term-matching retrieval. BM25 scores reflect surface-level lexical overlap and inverse document frequency statistics, not factual sufficiency or semantic entitlement. SQuAD~2.0 unanswerable questions were specifically engineered by human crowdworkers to exhibit high lexical overlap with their paired passages while subtly altering key entities, dates, or relational constraints. Consequently, unanswerable queries often trigger retrieval scores that are indistinguishable from, or even higher than, answerable queries (as illustrated in Figure~\ref{fig:bm25_score_distribution}).
+
+In sharp contrast, the multi-feature \emph{Answerability Classifier} achieved an $F_1$ score of $0.8543$, reducing the false-answer rate from $1.0000$ to $0.1776$. This leap in performance confirms that combining retrieval-side statistics with reader-side confidence metrics (\texttt{qa\_score}, \texttt{qa\_no\_answer\_probability}, and predicted answer length) captures critical orthogonal information. While BM25 signals whether topically related text has been surfaced, the reader component models whether a coherent, well-supported entity span answering the precise relation in the query actually exists within that text.
+
+\section{The Precision-Recall and Risk-Coverage Trade-off}
+\label{sec:disc_tradeoff}
+
+In selective prediction frameworks, there is an unavoidable trade-off between coverage (the proportion of queries on which the system agrees to answer) and precision (the accuracy or factual validity of the answers provided).
+
+Figure~\ref{fig:precision_recall_tradeoff} highlights this dynamics clearly:
+\begin{itemize}
+  \item Under the \emph{Always Answer} paradigm, coverage is $100\%$, but the risk of hallucination or false assertions is maximised. In our balanced test set, $48.2\%$ of answers were presented on unanswerable questions, leading to a false-answer rate of $100\%$.
+  \item By tuning the decision threshold $\tau$ to $0.28$, the Answerability Classifier operates at an optimal balance point: it abstains on $48.0\%$ of the instances, retaining $52.0\%$ coverage. Crucially, on this retained subset, precision jumps from $48.2\%$ to $82.3\%$, and the downstream answer token-$F_1$ rises from $0.7369$ to $0.8130$.
+\end{itemize}
+
+In mission-critical domains (such as medical diagnosis, legal statutory search, or automated technical compliance), producing an incorrect answer carries severe legal and safety consequences, whereas an explicit refusal (``insufficient information available'') allows a human operator to intervene. In such contexts, operating at an even more conservative threshold (e.g., $\tau \ge 0.50$) would further depress false answers at the cost of lower coverage.
+
+\section{Methodological and Dataset Limitations}
+\label{sec:disc_limitations}
+
+While the experimental findings are robust, several methodological caveats must be acknowledged:
+
+\begin{enumerate}
+  \item \textbf{Context Pairing Proxy Assumption:} The ground-truth label \texttt{is\_answerable} in SQuAD~2.0 is defined relative to the original source article paragraph from Wikipedia. In an open-domain or retrieval-augmented setting, BM25 searches across the broader partition corpus. It is theoretically possible that a question labeled as ``unanswerable'' with respect to its original passage could find an accidental answer in another passage retrieved by BM25. However, because our corpus is partitioned strictly by article to prevent leakage, cross-article contamination is strictly controlled.
+  \item \textbf{Evaluation Scale:} Owing to computational bounds during reader inference on CPU hardware, the complete QA pipeline was evaluated on a curated sample of $500$ test questions per split rather than the full $1,200$ instances. The sample retains identical class balance and article grouping properties, ensuring statistical validity, but scaling to millions of documents remains an open engineering step.
+  \item \textbf{Extractive Reader Constraint:} The experimental setup utilizes an extractive model (\texttt{deepset/roberta-base-squad2}) rather than a generative autoregressive LLM (e.g., LLaMA-3 or Mistral). While extractive readers provide strictly bounded spans and well-calibrated start/end logits, modern RAG systems frequently rely on generative synthesis. Evaluating abstention mechanisms across generative backbones remains an essential follow-up.
+\end{enumerate}
+
+\section{Implications for Real-World RAG Deployment}
+\label{sec:disc_deployment}
+
+Our findings offer direct architectural recommendations for production RAG pipelines:
+\begin{itemize}
+  \item \textbf{Never gate on vector or BM25 similarity alone:} In practice, similarity thresholds (e.g., cosine similarity $> 0.75$) are frequently used as heuristics to reject queries. Our work empirically proves that retrieval similarity does not imply factual sufficiency.
+  \item \textbf{Deploy a dedicated gating verifier:} An inexpensive logistic regression or lightweight MLP that ingests cross-encoder reranker scores, reader span logits, and lexical overlap features provides a reliable, sub-millisecond abstention layer before incurring expensive generation or exposing users to hallucinations.
+\end{itemize}

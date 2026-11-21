@@ -1,0 +1,160 @@
+%% ============================================================
+%% Chapter 4 — System Architecture
+%% ============================================================
+\chapter{System Architecture}
+\label{chap:architecture}
+
+\section{Overview}
+\label{sec:arch_overview}
+
+The end-to-end pipeline consists of five conceptual stages that transform a raw
+question into either a final answer or an abstention signal. Figure~\ref{fig:architecture}
+shows the full pipeline as a TikZ diagram.
+
+\begin{enumerate}
+  \item \textbf{Data Ingestion \& Preprocessing.}  The SQuAD~2.0 JSON file is
+        loaded and parsed. Each article's passages and questions are extracted.
+        An article-level stratified split divides the data into train, validation,
+        and test partitions, ensuring no article straddles two splits.
+
+  \item \textbf{BM25 Indexing.}  For each split, an Okapi BM25 index is built
+        over the split's passages. The index stores inverted lists over
+        lower-cased, whitespace-tokenised terms, weighted by IDF.
+
+  \item \textbf{Retrieval \& Feature Extraction.}  At query time, the question
+        is used to query the BM25 index. The top-5 scored passages are
+        retrieved; five retrieval features are computed from their scores
+        (Table~\ref{tab:features}).
+
+  \item \textbf{QA Reader.}  The top-1 retrieved passage is concatenated with
+        the question and fed to the \texttt{deepset/roberta-base-squad2}
+        reader. The reader produces a predicted answer span together with a
+        \texttt{qa\_score} and a \texttt{qa\_no\_answer\_probability}. Six
+        additional reader and query features are derived.
+
+  \item \textbf{Abstention Decision.}  One of the three strategies
+        (Always Answer, BM25 Threshold, Answerability Classifier) processes the
+        combined feature vector and returns either the predicted answer or an
+        abstention token~$\varnothing$.
+\end{enumerate}
+
+\section{TikZ Pipeline Diagram}
+\label{sec:arch_diagram}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[
+      node distance = 1.1cm and 1.6cm,
+      >=Stealth,
+      block/.style = {rectangle, draw, rounded corners=4pt,
+                      fill=blue!8, text width=3.2cm,
+                      minimum height=1.1cm, align=center,
+                      font=\small},
+      decision/.style = {diamond, draw, fill=orange!15,
+                         text width=2.2cm, align=center,
+                         inner sep=1pt, font=\small},
+      io/.style     = {rectangle, draw, fill=green!10,
+                       text width=2.5cm, minimum height=1cm,
+                       align=center, font=\small},
+      result/.style = {rectangle, draw, fill=red!10,
+                       text width=2.5cm, minimum height=1cm,
+                       align=center, font=\small},
+      line/.style   = {draw, -Stealth, thick},
+    ]
+
+    %% Nodes
+    \node[io]       (input)    {Question $q$};
+    \node[block,    right=of input]  (bm25idx)  {BM25\\Index};
+    \node[block,    right=of bm25idx](retrieval){Top-5 Passage\\Retrieval};
+    \node[block,    right=of retrieval](reader){RoBERTa\\Reader};
+
+    %% Feature extraction below retrieval
+    \node[block,    below=1.5cm of retrieval](features){Feature\\Extraction\\(11 features)};
+
+    %% Abstention decision
+    \node[decision, below=1.5cm of reader](abstain){Abstention\\Strategy};
+
+    %% Outputs
+    \node[result,   right=1.4cm of abstain](answer){Answer $\hat{a}$};
+    \node[result,   below=0.9cm of abstain](abstain_out){Abstain $\varnothing$};
+
+    %% Corpus
+    \node[io, left=of bm25idx](corpus){Passage\\Corpus};
+
+    %% Arrows
+    \draw[line] (corpus)    -- (bm25idx);
+    \draw[line] (bm25idx)   -- (retrieval);
+    \draw[line] (input)     |- (retrieval);
+    \draw[line] (retrieval) -- (reader);
+    \draw[line] (retrieval) -- (features);
+    \draw[line] (reader)    |- (features);
+    \draw[line] (reader)    -- (abstain);
+    \draw[line] (features)  -| (abstain);
+    \draw[line] (abstain)   -- node[above]{\small Answer} (answer);
+    \draw[line] (abstain)   -- node[right]{\small Abstain} (abstain_out);
+
+  \end{tikzpicture}
+  \caption{End-to-end RAG-with-abstention pipeline. The question is used to
+           retrieve passages via BM25, the top-1 passage is passed to the
+           RoBERTa reader, and the combined 11-dimensional feature vector is
+           evaluated by the abstention strategy to decide whether to answer or
+           abstain.}
+  \label{fig:architecture}
+\end{figure}
+
+\section{Component Interactions and Data Flow}
+\label{sec:arch_dataflow}
+
+The pipeline is implemented in Python using the \texttt{rank\_bm25} library for
+retrieval and the Hugging Face \texttt{transformers} library for the QA reader.
+Feature vectors are stored as \texttt{pandas} DataFrames and serialised to CSV
+files after each pipeline stage, enabling reproducibility and offline analysis.
+
+\paragraph{BM25 $\rightarrow$ Features.}
+After retrieval, the \texttt{top\_bm25\_score}, \texttt{second\_bm25\_score},
+\texttt{bm25\_score\_gap}, \texttt{mean\_topk\_bm25}, and
+\texttt{source\_passage\_retrieved} features are computed directly from the
+ranked list of (score, passage) pairs. These five values, together with the
+question metadata features (\texttt{question\_length}, \texttt{question\_token\_count}),
+are available before the reader is invoked.
+
+\paragraph{Reader $\rightarrow$ Features.}
+The reader's outputs (\texttt{qa\_score}, \texttt{qa\_no\_answer\_probability},
+\texttt{predicted\_answer\_length}, \texttt{answer\_nonempty}) are appended to
+the feature vector after the reader processes the top-1 passage.
+
+\paragraph{Classifier Training.}
+During training, the full 11-feature vectors are labelled with the ground-truth
+answerability flag and used to fit the logistic regression classifier. The
+trained model and its fitted \texttt{StandardScaler}+\texttt{SimpleImputer}
+pre-processors are saved to disk and loaded at test time.
+
+\paragraph{Threshold Selection.}
+Both the BM25 threshold $\tau$ and the classifier threshold $\delta$ are
+selected by sweeping candidate values on the validation set, measuring F1, and
+picking the maximiser. The best classifier threshold found is $\delta^* = 0.28$.
+Only then are the thresholds applied to the held-out test set.
+
+\section{Design Principles}
+\label{sec:arch_principles}
+
+Several design principles guided the architecture:
+
+\begin{description}
+  \item[Modularity.] Each stage produces a well-defined output artifact (CSV
+        file or pickled model), allowing stages to be run independently and
+        results to be reproduced without re-running the entire pipeline.
+
+  \item[Leakage prevention.] BM25 indices are built per-split; the classifier
+        is trained only on training features; thresholds are tuned only on
+        validation features. The test set remains entirely held out.
+
+  \item[Interpretability.] The choice of logistic regression over a black-box
+        model is deliberate: the learned coefficients can be inspected to
+        understand which features most influence the abstention decision.
+
+  \item[Scalability considerations.] While BM25 is efficient at corpus scale,
+        the architecture is designed so that the retrieval backbone can be
+        swapped for a dense retriever (e.g., DPR) without changing the
+        downstream feature extraction or classifier code.
+\end{description}

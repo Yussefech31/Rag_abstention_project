@@ -1,0 +1,174 @@
+%% ============================================================
+%% Chapter 7 — Error Analysis
+%% ============================================================
+\chapter{Error Analysis}
+\label{chap:error_analysis}
+
+\section{Error Taxonomy}
+\label{sec:err_taxonomy}
+
+We categorise errors made by the Answerability Classifier into three
+orthogonal failure modes. Table~\ref{tab:error_taxonomy} provides a structured
+overview; Sections~\ref{sec:err_retrieval}–\ref{sec:err_classification} discuss
+each in detail.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Error taxonomy for the RAG-with-abstention pipeline.}
+  \label{tab:error_taxonomy}
+  \begin{tabular}{llp{6.5cm}}
+    \toprule
+    \textbf{Error Type} & \textbf{Locus} & \textbf{Description} \\
+    \midrule
+    Retrieval Failure      & BM25 retriever  & The ground-truth passage is not in
+                                               the top-$k$ results; the reader
+                                               has no access to relevant text. \\
+    Extraction Failure     & RoBERTa reader  & The ground-truth passage is retrieved,
+                                               but the reader extracts an incorrect
+                                               or empty span. \\
+    Classification Failure & Abstention layer & The classifier makes the wrong
+                                               abstention decision regardless of
+                                               retrieval and extraction quality. \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Retrieval Failure}
+\label{sec:err_retrieval}
+
+Retrieval failures arise when BM25 cannot surface the relevant passage among the
+top-$k$ results. This happens most often when:
+
+\begin{itemize}
+  \item The question contains synonyms or paraphrases not present in the
+        passage (lexical mismatch).
+  \item The question is about a rare entity that appears in many passages,
+        causing relevant passages to be outranked by topically similar but
+        factually different ones.
+  \item The passage is very short and receives a low BM25 score due to length
+        normalisation, even if it is the most relevant.
+\end{itemize}
+
+\noindent \textbf{Example.} Consider the question \textit{``What year did the
+Treaty of Paris end the conflict?''} In this case, BM25 may retrieve passages
+about the Treaty of Paris of 1763 (Seven Years' War), 1783 (American
+Revolutionary War), or 1898 (Spanish–American War), depending on the broader
+corpus context. If the ground-truth passage concerns the 1783 treaty but BM25
+ranks it third, the reader operates on irrelevant text, leading to either an
+empty answer or a hallucinated date.
+
+When retrieval fails on an \emph{unanswerable} question, the system may
+accidentally produce the correct abstention—but for the wrong reason.
+Conversely, when retrieval fails on an \emph{answerable} question, the system
+faces an extraction failure even before the abstention decision.
+
+\subsection{Extraction Failure}
+\label{sec:err_extraction}
+
+Even when the correct passage is retrieved (top-1), the RoBERTa reader may fail
+to extract the right span. Common sub-cases include:
+
+\begin{itemize}
+  \item \textbf{Off-by-one extraction.} The reader returns a span that is
+        slightly wider or narrower than the ground-truth answer (e.g.,
+        extracting \textit{``the 14th of July, 1789''} when the answer is
+        simply \textit{``14 July 1789''}).
+
+  \item \textbf{Plausible distractor selection.} The passage contains
+        several entity mentions of the same type (e.g., multiple dates), and
+        the reader selects the wrong one.
+
+  \item \textbf{Wrong no-answer prediction.} The reader assigns a high
+        \texttt{qa\_no\_answer\_probability} to a passage that actually
+        contains the answer, triggering an extraction abstention even though
+        the retrieval was successful.
+\end{itemize}
+
+\noindent \textbf{Example.} \textit{Question:} ``What is the boiling point of
+water?'' \textit{Passage:} ``Water boils at 100°C under standard atmospheric
+pressure of 101.3 kPa.'' A reader that erroneously extracts \textit{``101.3
+kPa''} instead of \textit{``100°C''} commits an extraction failure.
+
+\subsection{Classification Failure}
+\label{sec:err_classification}
+
+Classification failures occur at the abstention layer: the classifier assigns
+the wrong answerability label, independent of whether retrieval and extraction
+are correct. The two sub-types are:
+
+\begin{itemize}
+  \item \textbf{False Positive (FP, $n=46$).} The classifier predicts
+        \emph{answerable} ($\hat{p} \geq 0.28$) for an unanswerable question.
+        These are \emph{false answers}: the system returns a spurious span.
+        In the test set, 46 out of 600 unanswerable questions receive a
+        false answer, giving a False-Answer Rate of $46/600 \approx 7.7\%$
+        among \emph{questions the classifier attempts to answer} (and 17.76\%
+        of all unanswerable questions).
+
+  \item \textbf{False Negative (FN, $n=27$).} The classifier predicts
+        \emph{unanswerable} ($\hat{p} < 0.28$) for an answerable question.
+        These are \emph{false abstentions}: the system withholds a correct
+        answer. In the test set, 27 out of 600 answerable questions are
+        suppressed, giving a False-Abstention Rate of $27/600 = 4.5\%$.
+\end{itemize}
+
+False Positives are more numerous than False Negatives (46 vs.\ 27),
+consistent with the low threshold $\delta^* = 0.28$ that biases the system
+toward answering. The asymmetry reflects the choice to optimise F1—which
+penalises false abstentions (FN) more than false answers (FP) in this
+evaluation formulation.
+
+\section{Qualitative Case Analysis}
+\label{sec:err_cases}
+
+We examine representative examples from the three error categories.
+
+\paragraph{Case 1 — Retrieval Failure on Answerable Question.}
+\textit{Question:} [INSERT FROM NOTEBOOKS — example unanswered question due to
+retrieval failure]\\
+\textit{Ground-truth passage:} [INSERT FROM NOTEBOOKS]\\
+\textit{Top-1 retrieved passage:} [INSERT FROM NOTEBOOKS]\\
+\textit{Analysis:} The question uses domain-specific terminology not in the
+ground-truth passage title, causing BM25 to rank a topically adjacent but
+wrong passage first. Because the retrieved passage is irrelevant, the reader
+produces an empty or incorrect span, and the classifier—seeing low retrieval
+scores—correctly abstains. However, the abstention is \emph{accidental}: the
+system reached the right answer for the wrong reason.
+
+\paragraph{Case 2 — Classification Failure (False Positive).}
+\textit{Question:} [INSERT FROM NOTEBOOKS — example FP case from
+test\_classifier\_predictions.csv]\\
+\textit{Analysis:} Despite the question being unanswerable given the corpus,
+the BM25 retriever returns a passage with a relatively high score
+(\texttt{top\_bm25\_score}~$\approx$~[INSERT]), and the reader produces a
+confident-sounding span with \texttt{qa\_score}~$\approx$~[INSERT]. These
+signals mislead the classifier into predicting \emph{answerable}, producing a
+false answer.
+
+\paragraph{Case 3 — Classification Failure (False Negative).}
+\textit{Question:} [INSERT FROM NOTEBOOKS — example FN case]\\
+\textit{Analysis:} The correct passage is retrieved (rank 1), and the reader
+extracts the right span. However, the \texttt{qa\_no\_answer\_probability} is
+anomalously elevated (e.g., because the answer span is a numeric entity with
+unusual token characteristics), and the classifier—weighting this feature
+heavily—predicts \emph{unanswerable}, causing an unnecessary abstention.
+
+\section{Summary}
+\label{sec:err_summary}
+
+The error analysis reveals that:
+
+\begin{enumerate}
+  \item Retrieval failures constitute a fundamental bottleneck. When BM25
+        cannot retrieve the right passage, neither the reader nor the
+        abstention layer can compensate.
+
+  \item Classification failures (FP and FN) account for 73 out of 1,200 test
+        questions (6.1\% of total), suggesting substantial room for improvement
+        with richer features or a non-linear classifier.
+
+  \item The classifier's main advantage over the BM25 Threshold strategy is
+        its ability to integrate reader signals (\texttt{qa\_score},
+        \texttt{qa\_no\_answer\_probability}) that capture post-retrieval
+        evidence unavailable to a pure retrieval-based threshold.
+\end{enumerate}

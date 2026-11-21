@@ -1,0 +1,67 @@
+%% ============================================================
+%% Appendix A — Experimental Artifacts and Configuration
+%% ============================================================
+\chapter{Experimental Artifacts and Implementation Details}
+\label{app:artifacts}
+
+\section{Software Environment and Dependencies}
+\label{sec:app_env}
+
+The experimental pipeline was implemented in Python 3.11 using standard scientific and natural language processing libraries. Key packages and tested versions include:
+
+\begin{itemize}
+  \item \textbf{Python}: 3.11.x
+  \item \textbf{PyTorch}: \texttt{torch >= 2.0.0}
+  \item \textbf{Transformers}: \texttt{transformers >= 4.30.0}
+  \item \textbf{Rank-BM25}: \texttt{rank\_bm25 == 0.2.2}
+  \item \textbf{Scikit-Learn}: \texttt{scikit-learn >= 1.2.0}
+  \item \textbf{Pandas}: \texttt{pandas >= 2.0.0}
+  \item \textbf{NumPy}: \texttt{numpy >= 1.24.0}
+  \item \textbf{Matplotlib \& Seaborn}: \texttt{matplotlib >= 3.7.0}, \texttt{seaborn >= 0.12.0}
+\end{itemize}
+
+\section{Classifier Feature Definitions}
+\label{sec:app_features}
+
+Table~\ref{tab:app_features} details the eleven engineered features utilized by the Answerability Classifier.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Engineered features for the Answerability Classifier.}
+  \label{tab:app_features}
+  \small
+  \begin{tabular}{llp{7.5cm}}
+    \toprule
+    \textbf{Feature Name} & \textbf{Type} & \textbf{Mathematical / Operational Definition} \\
+    \midrule
+    \texttt{top\_bm25\_score} & Continuous & Highest BM25 score among retrieved passages: $\max_{p \in \mathcal{P}_k} \text{score}_{\text{BM25}}(q, p)$ \\
+    \texttt{second\_bm25\_score} & Continuous & Second highest BM25 score among retrieved passages. \\
+    \texttt{bm25\_score\_gap} & Continuous & Difference: $\text{top\_bm25\_score} - \text{second\_bm25\_score}$ \\
+    \texttt{mean\_topk\_bm25} & Continuous & Mean retrieval score across top-$k$ ($k=5$) passages: $\frac{1}{k}\sum_{i=1}^k s_i$ \\
+    \texttt{source\_passage\_retrieved} & Binary & Indicator ($1/0$) whether the original paired article context ID appears in top-$k$ retrieved IDs. \\
+    \texttt{question\_length} & Integer & Whitespace-delimited word count of the query string. \\
+    \texttt{predicted\_answer\_length} & Integer & Whitespace-delimited word count of the extracted answer span. \\
+    \texttt{qa\_score} & Continuous & Confidence logit / probability of the best extracted answer span from RoBERTa. \\
+    \texttt{qa\_no\_answer\_probability} & Continuous & Model probability assigned to the empty (impossible) answer span. \\
+    \texttt{question\_token\_count} & Integer & Unique alphanumeric token count in query: $|\text{set}(\text{regex}(q))|$. \\
+    \texttt{answer\_nonempty} & Binary & Indicator ($1/0$) whether the extracted answer text is non-empty after stripping whitespace. \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Classification Pipeline Specification}
+\label{sec:app_pipeline}
+
+The Scikit-Learn classification pipeline is formally defined as:
+\begin{lstlisting}[language=Python]
+pipeline = Pipeline([
+    ('imputer', SimpleImputer(strategy='median')),
+    ('scaler', StandardScaler()),
+    ('classifier', LogisticRegression(
+        max_iter=2000,
+        class_weight='balanced',
+        random_state=42
+    ))
+])
+\end{lstlisting}
+The threshold $\tau = 0.28$ was selected via grid search on the validation set ($\Delta \tau = 0.01$) to maximize the $F_1$ score for the positive class (\texttt{is\_answerable = True}).

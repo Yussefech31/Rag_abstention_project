@@ -1,0 +1,147 @@
+%% ============================================================
+%% Chapter 2 — Background and Related Work
+%% ============================================================
+\chapter{Background and Related Work}
+\label{chap:background}
+
+\section{Reading Comprehension Datasets}
+\label{sec:bg_datasets}
+
+\subsection{SQuAD 1.1}
+
+The Stanford Question Answering Dataset (SQuAD) \cite{rajpurkar2016squad}
+established a de-facto standard for machine reading comprehension when it was
+released in 2016. The dataset consists of approximately 100,000 question–answer
+pairs derived from 536 Wikipedia articles. Each question is paired with a
+passage, and the answer is guaranteed to be a contiguous span within that
+passage, making it amenable to extractive QA approaches. Human performance on
+SQuAD 1.1 is approximately 82.3 F1 and 72.0 exact match, scores that modern
+Transformer models have since surpassed.
+
+A key limitation of SQuAD 1.1 is that \emph{every} question has an answer in
+the provided passage. As a result, models trained on SQuAD 1.1 learn a
+systematic bias toward always producing a span, regardless of whether the
+passage actually contains an answer. This makes them unsuitable for open-domain
+RAG settings where many queries are unanswerable given the retrieved context.
+
+\subsection{SQuAD 2.0}
+
+To address this limitation, \citet{rajpurkar2018squad2} released SQuAD~2.0
+in 2018. The dataset augments SQuAD 1.1 with over 50,000 adversarially crafted
+unanswerable questions, written by crowdworkers who were shown a paragraph and
+asked to pose a question that looked plausible but could not be answered from
+the paragraph. SQuAD~2.0 thus requires models to both locate answers in context
+\emph{and} identify when no answer is present, returning a null span in the
+latter case. Human performance stands at approximately 89.5 F1 and 86.9 exact
+match, leaving a substantial gap to close.
+
+The answerability challenge introduced by SQuAD~2.0 is directly aligned with
+the abstention problem studied in this work. We use SQuAD~2.0 as the
+experimental benchmark throughout.
+
+\section{Sparse Retrieval with BM25}
+\label{sec:bg_bm25}
+
+Okapi BM25 (Best Match 25) \cite{robertson2009bm25} is the dominant sparse
+retrieval function in information retrieval and has remained highly competitive
+despite the rise of dense neural retrievers. Given a query $q$ and a document
+(passage) $d$, BM25 scores the relevance of $d$ to $q$ as
+
+\begin{equation}
+  \text{BM25}(q, d) = \sum_{t \in q} \text{IDF}(t) \cdot
+  \frac{f(t, d)\,(k_1 + 1)}
+       {f(t, d) + k_1\!\left(1 - b + b\,\dfrac{|d|}{\text{avgdl}}\right)},
+  \label{eq:bm25}
+\end{equation}
+
+\noindent where:
+
+\begin{itemize}
+  \item $f(t, d)$ is the term frequency of token $t$ in document $d$;
+  \item $|d|$ is the length of document $d$ in tokens;
+  \item $\text{avgdl}$ is the average document length in the collection;
+  \item $k_1 \in [1.2, 2.0]$ controls term-frequency saturation;
+  \item $b \in [0, 1]$ controls length normalisation (typically $b = 0.75$);
+  \item $\text{IDF}(t)$ is the Inverse Document Frequency of token $t$,
+        commonly computed as
+        \[
+          \text{IDF}(t) = \log\!\frac{N - n(t) + 0.5}{n(t) + 0.5},
+        \]
+        where $N$ is the total number of documents and $n(t)$ is the number of
+        documents containing $t$.
+\end{itemize}
+
+Equation~\eqref{eq:bm25} has two notable properties: (i) term frequency
+contributes with \emph{diminishing returns}, saturating as $f(t,d) \to \infty$;
+and (ii) longer documents are \emph{penalised} through the length normalisation
+factor $(1 - b + b\,|d|/\text{avgdl})$. These properties make BM25 robust
+across heterogeneous corpora.
+
+A key intuition motivating our BM25 Threshold strategy (Section~\ref{sec:meth_threshold})
+is that the magnitude of the top-passage BM25 score encodes a form of
+\emph{retrieval confidence}: a high score signals that the query terms overlap
+substantially with the retrieved passage, making it more likely that the
+passage contains the answer.
+
+\section{Transformer-based Extractive QA}
+\label{sec:bg_transformer_qa}
+
+\subsection{BERT}
+
+BERT (Bidirectional Encoder Representations from Transformers)
+\cite{devlin2019bert} introduced a pre-trained Transformer encoder trained on
+Masked Language Modelling (MLM) and Next Sentence Prediction (NSP) objectives.
+When fine-tuned on SQuAD, BERT encodes the concatenated query and passage and
+predicts two scalar logits per token—one for the start position and one for the
+end position of the answer span. The token with the highest start logit and the
+token with the highest end logit (after the start) jointly define the extracted
+span.
+
+\subsection{RoBERTa}
+
+RoBERTa (Robustly Optimised BERT Pretraining Approach) \cite{liu2019roberta}
+improved upon BERT through a more careful pre-training recipe: training on
+larger data (160 GB vs 16 GB), longer sequences, larger batches, more steps,
+dynamic masking, and removal of the NSP objective. These changes consistently
+improved downstream task performance, including on SQuAD~2.0.
+
+In this work we use the \texttt{deepset/roberta-base-squad2} checkpoint, a
+RoBERTa-base model fine-tuned by the \texttt{deepset} team specifically on
+SQuAD~2.0. This checkpoint is designed to handle the \texttt{handle\_impossible\_answer}
+flag: it returns a \texttt{qa\_score} (probability that the extracted span is
+the answer) and a \texttt{qa\_no\_answer\_probability} (probability that no
+answer exists in the passage), both of which we use as features.
+
+\section{Retrieval-Augmented Generation}
+\label{sec:bg_rag}
+
+\citet{lewis2020rag} introduced the RAG framework, which couples a dense
+passage retriever (DPR) with a sequence-to-sequence generator. At inference
+time, the retriever fetches the top-$k$ passages from a Wikipedia index; the
+generator then conditions on the query and all retrieved passages to produce the
+final answer. RAG demonstrated state-of-the-art results on open-domain QA
+benchmarks and popularised the retriever–reader paradigm.
+
+Subsequent work \cite{zhang2023rag} identified hallucination as a central
+failure mode in RAG: the generator can produce confident-sounding text that is
+not supported by any retrieved passage. This motivates the abstention paradigm
+explored in our work, where the system learns to refrain from answering
+precisely when the retrieval context is insufficient.
+
+\section{Selective Prediction}
+\label{sec:bg_selective}
+
+Selective prediction \cite{geifman2017selective} is the framework in which a
+model is allowed to \emph{abstain} on inputs where it is uncertain, rather than
+always producing a prediction. Formally, a selective classifier is a pair
+$(f, g)$ where $f$ is the prediction function and $g : \mathcal{X} \to \{0,1\}$
+is the selection function; the system answers if and only if $g(x)=1$.
+Performance is then measured over the \emph{selected} subset, together with the
+\emph{coverage} $\Pr[g(x)=1]$.
+
+A key result is that there exists a fundamental precision–coverage trade-off:
+increasing coverage inevitably reduces precision at some point. The challenge is
+to find a selection function that achieves a favourable operating point on this
+frontier. In our work, the BM25 threshold and the logistic regression
+classifier both serve as instantiations of $g$, with the threshold controlling
+the trade-off.
