@@ -272,10 +272,35 @@ if run_button or query_text:
             icon="✅",
         )
     else:
+        # Determine exact reason for abstention/empty output
+        if selected_strategy == "always_answer":
+            reason_text = (
+                f"**Strategy Note:** You selected **Always Answer (Baseline)**, which does not gate or withhold queries "
+                f"(Threshold: `{result.threshold:.2f}`). However, the RoBERTa reader found **no answer span** "
+                f"in the top-{top_k} retrieved Wikipedia passages (it assigned high confidence to the empty/impossible span). "
+                f"Because the text does not contain the answer, no text could be returned."
+            )
+        elif selected_strategy == "bm25_threshold":
+            reason_text = (
+                f"**Gating Reason:** Top BM25 retrieval score was **{result.top_bm25_score:.2f}**, which is below "
+                f"the BM25 cutoff threshold of **{result.threshold:.2f}**."
+            )
+        else:  # classifier
+            if result.decision_probability < result.threshold:
+                reason_text = (
+                    f"**Gating Reason:** The Answerability Classifier predicted $P(\\text{{is\\_answerable}}) = "
+                    f"\\mathbf{{{result.decision_probability:.4f}}}$, which falls below the decision threshold $\\tau = \\mathbf{{{result.threshold:.2f}}}$. "
+                    f"The answer was withheld to prevent a hallucinated or false answer."
+                )
+            else:
+                reason_text = (
+                    f"**Reader Note:** The classifier allowed answering ($P = {result.decision_probability:.4f} \\ge {result.threshold:.2f}$), "
+                    f"but the neural reader extracted an empty span from the retrieved context."
+                )
+
         st.warning(
-            f"### 🛑 Pipeline Decision: ABSTAINED (∅)\n\n"
-            f"**Action:** Withheld answer because internal evidence was judged insufficient to guarantee factual correctness.\n\n"
-            f"*Decision probability was **{result.decision_probability:.4f}**, below the threshold of **{result.threshold:.2f}**.*",
+            f"### 🛑 Pipeline Decision: NO ANSWER RETURNED (∅)\n\n"
+            f"{reason_text}",
             icon="🛑",
         )
 
