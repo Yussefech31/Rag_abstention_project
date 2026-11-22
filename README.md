@@ -203,9 +203,11 @@ Rag_ab/
 │   ├── classifier_validation_thresholds.csv
 │   └── figures/
 ├── src/                            # Modular Python source package
+│   ├── __init__.py                 # Package exports
 │   ├── data/
 │   │   └── inspect_dataset.py      # Quick inspection of raw SQuAD JSONs
-│   └── pipeline.py                 # Core inference pipeline
+│   └── pipeline.py                 # Core inference pipeline & selective gating
+├── app.py                          # Interactive Streamlit Web Application
 ├── generate_figures.py             # Script generating all 300-DPI thesis figures
 ├── requirements.txt                # Pinned dependency requirements
 ├── .gitignore                      # Git configuration (filters caches, large data & build artifacts)
@@ -248,14 +250,25 @@ pip install -r requirements.txt
 
 ## ⚡ Execution & Reproducibility
 
-### Running the Experimental Notebooks
+### 1. Launch Interactive Streamlit Web Application
+Run the interactive demonstration UI:
+```bash
+streamlit run app.py
+```
+This launches a browser interface where you can:
+- Select curated answerable and adversarial unanswerable test queries (or enter custom questions).
+- Interactively switch strategies (`Answerability Classifier`, `BM25 Threshold`, `Always Answer`).
+- Adjust the decision threshold slider $\tau \in [0.05, 0.95]$ in real time.
+- Inspect the 11 engineered features and candidate retrieved passages.
+
+### 2. Running the Experimental Notebooks
 Launch Jupyter Lab or Jupyter Notebook:
 ```bash
 jupyter lab
 ```
 Execute the notebooks in sequence from `01_dataset_exploration.ipynb` to `09_error_analysis.ipynb` to reproduce data splitting, indexing, feature extraction, classifier training, and final test set evaluation.
 
-### Generating Scientific Figures
+### 3. Generating Scientific Figures
 To recreate all publication figures (300 DPI) into `results/figures/`:
 ```bash
 python generate_figures.py
