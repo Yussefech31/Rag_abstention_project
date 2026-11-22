@@ -20,13 +20,14 @@ In sharp contrast, the multi-feature \emph{Answerability Classifier} achieved an
 
 In selective prediction frameworks, there is an unavoidable trade-off between coverage (the proportion of queries on which the system agrees to answer) and precision (the accuracy or factual validity of the answers provided).
 
-Figure~\ref{fig:precision_recall_tradeoff} highlights this dynamics clearly:
+Figure~\ref{fig:pr_curve} and the strategy comparison highlight this dynamics clearly:
 \begin{itemize}
-  \item Under the \emph{Always Answer} paradigm, coverage is $100\%$, but the risk of hallucination or false assertions is maximised. In our balanced test set, $48.2\%$ of answers were presented on unanswerable questions, leading to a false-answer rate of $100\%$.
-  \item By tuning the decision threshold $\tau$ to $0.28$, the Answerability Classifier operates at an optimal balance point: it abstains on $48.0\%$ of the instances, retaining $52.0\%$ coverage. Crucially, on this retained subset, precision jumps from $48.2\%$ to $82.3\%$, and the downstream answer token-$F_1$ rises from $0.7369$ to $0.8130$.
+  \item Under the \emph{Always Answer} paradigm, coverage is $100\%$, but the risk of hallucination or false assertions is maximised. In our balanced test set, $50\%$ of answers were presented on unanswerable questions, leading to a false-answer rate of $100\%$ and strict Exact Match of only $1\%$.
+  \item By tuning the decision threshold to $\delta^* = 0.42$ on validation data, the Answerability Classifier operates at an operating point retaining $85.0\%$ coverage and $84.0\%$ recall, cutting false abstentions to $16.0\%$ while identifying queries where reader confidence collapses.
+  \item In contrast, the BM25 threshold heuristic ($\tau_{\text{BM25}} = 13.15$) reduces false answers to $72.0\%$ and achieves the highest overall strict Exact Match ($15\%$), but incurs a heavy false-abstention rate of $30.0\%$, discarding viable answers.
 \end{itemize}
 
-In mission-critical domains (such as medical diagnosis, legal statutory search, or automated technical compliance), producing an incorrect answer carries severe legal and safety consequences, whereas an explicit refusal (``insufficient information available'') allows a human operator to intervene. In such contexts, operating at an even more conservative threshold (e.g., $\tau \ge 0.50$) would further depress false answers at the cost of lower coverage.
+In mission-critical domains (such as medical diagnosis, legal statutory search, or automated technical compliance), producing an incorrect answer carries severe legal and safety consequences, whereas an explicit refusal (``insufficient information available'') allows a human operator to intervene. In such contexts, operating at an even more conservative threshold (e.g., $\delta \ge 0.50$) would further depress false answers at the cost of lower coverage.
 
 \section{Methodological and Dataset Limitations}
 \label{sec:disc_limitations}
@@ -34,8 +35,8 @@ In mission-critical domains (such as medical diagnosis, legal statutory search, 
 While the experimental findings are robust, several methodological caveats must be acknowledged:
 
 \begin{enumerate}
-  \item \textbf{Context Pairing Proxy Assumption:} The ground-truth label \texttt{is\_answerable} in SQuAD~2.0 is defined relative to the original source article paragraph from Wikipedia. In an open-domain or retrieval-augmented setting, BM25 searches across the broader partition corpus. It is theoretically possible that a question labeled as ``unanswerable'' with respect to its original passage could find an accidental answer in another passage retrieved by BM25. However, because our corpus is partitioned strictly by article to prevent leakage, cross-article contamination is strictly controlled.
-  \item \textbf{Evaluation Scale:} Owing to computational bounds during reader inference on CPU hardware, the complete QA pipeline was evaluated on a curated sample of $500$ test questions per split rather than the full $1,200$ instances. The sample retains identical class balance and article grouping properties, ensuring statistical validity, but scaling to millions of documents remains an open engineering step.
+  \item \textbf{SQuAD Passage-Level Answerability Proxy Assumption:} The ground-truth label \texttt{is\_answerable} in SQuAD~2.0 is defined strictly relative to the original paired Wikipedia paragraph. In a retrieval-augmented setting, BM25 searches across the broader partition corpus. SQuAD 2.0 unanswerable queries were deliberately authored by crowdworkers to share dense lexical overlap with candidate passages, making sparse BM25 scoring particularly vulnerable to adversarial distractors. Furthermore, passage-level answerability labels do not directly tell us if an alternative retrieved passage contains an accidental answer.
+  \item \textbf{Experimental Scale (500 Total Examples):} To maintain computational efficiency, leak-free article partitioning, and complete reproducibility on standard CPU hardware, the complete QA pipeline was trained and evaluated on a rigorously balanced 500-example study (300 training, 100 validation, 100 test). The partition preserves 50\% class balance and strict article separation (seed 42), ensuring statistical rigor without inflating claims to the full multi-thousand SQuAD corpus.
   \item \textbf{Extractive Reader Constraint:} The experimental setup utilizes an extractive model (\texttt{deepset/roberta-base-squad2}) rather than a generative autoregressive LLM (e.g., LLaMA-3 or Mistral). While extractive readers provide strictly bounded spans and well-calibrated start/end logits, modern RAG systems frequently rely on generative synthesis. Evaluating abstention mechanisms across generative backbones remains an essential follow-up.
 \end{enumerate}
 

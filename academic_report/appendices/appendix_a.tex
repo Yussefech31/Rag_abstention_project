@@ -23,11 +23,11 @@ The experimental pipeline was implemented in Python 3.11 using standard scientif
 \section{Classifier Feature Definitions}
 \label{sec:app_features}
 
-Table~\ref{tab:app_features} details the eleven engineered features utilized by the Answerability Classifier.
+Table~\ref{tab:app_features} details the ten inference-available engineered features utilized by the Answerability Classifier. Note that \texttt{source\_passage\_retrieved} was eliminated from the operational feature set to preserve inference parity (as the original ground-truth paragraph ID is absent at test time) and is retained solely for offline retrieval diagnostics.
 
 \begin{table}[htbp]
   \centering
-  \caption{Engineered features for the Answerability Classifier.}
+  \caption{Engineered features for the Answerability Classifier (10 inference features).}
   \label{tab:app_features}
   \small
   \begin{tabular}{llp{7.5cm}}
@@ -38,13 +38,12 @@ Table~\ref{tab:app_features} details the eleven engineered features utilized by 
     \texttt{second\_bm25\_score} & Continuous & Second highest BM25 score among retrieved passages. \\
     \texttt{bm25\_score\_gap} & Continuous & Difference: $\text{top\_bm25\_score} - \text{second\_bm25\_score}$ \\
     \texttt{mean\_topk\_bm25} & Continuous & Mean retrieval score across top-$k$ ($k=5$) passages: $\frac{1}{k}\sum_{i=1}^k s_i$ \\
-    \texttt{source\_passage\_retrieved} & Binary & Indicator ($1/0$) whether the original paired article context ID appears in top-$k$ retrieved IDs. \\
-    \texttt{question\_length} & Integer & Whitespace-delimited word count of the query string. \\
-    \texttt{predicted\_answer\_length} & Integer & Whitespace-delimited word count of the extracted answer span. \\
     \texttt{qa\_score} & Continuous & Confidence logit / probability of the best extracted answer span from RoBERTa. \\
     \texttt{qa\_no\_answer\_probability} & Continuous & Model probability assigned to the empty (impossible) answer span. \\
-    \texttt{question\_token\_count} & Integer & Unique alphanumeric token count in query: $|\text{set}(\text{regex}(q))|$. \\
+    \texttt{predicted\_answer\_length} & Integer & Whitespace-delimited word count of the extracted answer span. \\
     \texttt{answer\_nonempty} & Binary & Indicator ($1/0$) whether the extracted answer text is non-empty after stripping whitespace. \\
+    \texttt{question\_length} & Integer & Whitespace-delimited word count of the query string. \\
+    \texttt{question\_token\_count} & Integer & Unique alphanumeric token count in query: $|\text{set}(\text{regex}(q))|$. \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -64,4 +63,4 @@ pipeline = Pipeline([
     ))
 ])
 \end{lstlisting}
-The threshold $\tau = 0.28$ was selected via grid search on the validation set ($\Delta \tau = 0.01$) to maximize the $F_1$ score for the positive class (\texttt{is\_answerable = True}).
+The optimal decision threshold $\tau = 0.42$ was selected via grid search on the validation set ($\Delta \tau = 0.01$) to maximize the $F_1$ score for the positive class (\texttt{is\_answerable = True}).

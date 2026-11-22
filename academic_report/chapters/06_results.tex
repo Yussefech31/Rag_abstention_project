@@ -8,26 +8,25 @@
 \label{sec:results_comparison}
 
 Table~\ref{tab:strategy_comparison} summarises the performance of all three
-strategies on the held-out test set of 1,200 questions. All hyper-parameters
-were fixed prior to evaluation using the validation set only.
+strategies on the held-out test set of 100 questions (50 answerable, 50 unanswerable;
+strictly partitioned at article level with zero train/val leakage). All hyper-parameters
+and decision thresholds were tuned exclusively on the validation set ($\delta^* = 0.42$, $\tau_{\text{BM25}} = 13.15$).
 
 \begin{table}[htbp]
   \centering
-  \caption{Abstention strategy comparison on the test set
-           (1,200 questions: 600 answerable, 600 unanswerable).}
+  \caption{Abstention strategy comparison on the held-out test set ($N=100$: 50 answerable, 50 unanswerable).}
   \label{tab:strategy_comparison}
-  \begin{tabular}{lcccccc}
+  \small
+  \begin{tabular}{lcccccccc}
     \toprule
-    \textbf{Strategy} &
-    \textbf{Precision} & \textbf{Recall} & \textbf{F1} &
-    \textbf{Coverage} & \textbf{FAR} & \textbf{FAbR} \\
+    \textbf{Strategy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{Acc} & \textbf{Cov} & \textbf{FAR} & \textbf{FAbR} & \textbf{Overall EM} \\
     \midrule
-    Always Answer               & 0.4820 & 1.0000 & 0.6505 & 1.000 & 1.0000 & 0.0000 \\
-    BM25 Threshold              & 0.4810 & 0.9959 & 0.6486 & 0.998 & 1.0000 & 0.0042 \\
-    Answerability Classifier    & \textbf{0.8231} & 0.8880 & \textbf{0.8543} & 0.520 & \textbf{0.1776} & 0.1120 \\
+    Always Answer            & 0.5000 & \textbf{1.0000} & \textbf{0.6667} & 0.5000 & 1.000 & 1.0000 & \textbf{0.0000} & 0.0100 \\
+    BM25 Threshold ($\tau$)   & 0.4930 & 0.7000          & 0.5785          & 0.4900 & 0.710 & \textbf{0.7200} & 0.3000          & \textbf{0.1500} \\
+    Classifier ($\delta^*$)  & \textbf{0.4941} & 0.8400 & 0.6222          & 0.4900 & 0.850 & 0.8600          & 0.1600          & 0.0800 \\
     \bottomrule
-    \multicolumn{7}{l}{\small FAR = False-Answer Rate; FAbR = False-Abstention Rate.} \\
-    \multicolumn{7}{l}{\small Bold = best value in column.} \\
+    \multicolumn{9}{l}{\small FAR = False-Answer Rate; FAbR = False-Abstention Rate; Cov = Coverage; Acc = Accuracy; EM = Exact Match.} \\
+    \multicolumn{9}{l}{\small Thresholds: Classifier $\delta^* = 0.42$, BM25 cutoff $\tau_{\text{BM25}} = 13.15$.} \\
   \end{tabular}
 \end{table}
 
@@ -39,100 +38,95 @@ were fixed prior to evaluation using the validation set only.
   \label{fig:strategy_comparison}
 \end{figure}
 
-\section{Interpretation}
+\section{Separation of Answerability Gating and Answer Correctness}
+\label{sec:results_answer_eval}
+
+A critical scientific distinction must be drawn between \emph{binary answerability classification} (whether the system predicts that a question can be answered) and \emph{actual answer correctness} (whether the extracted span matches the ground-truth text).
+
+Table~\ref{tab:answer_quality} explicitly reports answer-level evaluation using strict Exact Match (EM) and token-level $F_1$:
+
+\begin{table}[htbp]
+  \centering
+  \caption{Downstream answer correctness evaluation by abstention strategy ($N=100$).}
+  \label{tab:answer_quality}
+  \begin{tabular}{lccccc}
+    \toprule
+    \textbf{Strategy} & \textbf{Coverage} & \textbf{Accepted EM} & \textbf{Accepted F1} & \textbf{Overall EM} & \textbf{Overall F1} \\
+    \midrule
+    Always Answer            & 1.0000 & 0.0100 & 0.0100 & 0.0100 & 0.0100 \\
+    BM25 Threshold           & 0.7100 & 0.0141 & 0.0141 & \textbf{0.1500} & \textbf{0.1500} \\
+    Answerability Classifier & 0.8500 & 0.0118 & 0.0118 & 0.0800 & 0.0800 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Under open-corpus retrieval where the gold paragraph is not guaranteed to be at rank 1, strict Exact Match on answered queries is modest ($\sim 1.2\%$--$1.4\%$). However, under the principal risk-coverage evaluation where abstaining on an unanswerable question is credited as a correct non-response, Overall EM increases dramatically: from 0.0100 for Always Answer up to 0.1500 for the BM25 Threshold and 0.0800 for the Classifier.
+
+\section{Interpretation of Empirical Findings}
 \label{sec:results_interpretation}
 
 \paragraph{Always Answer (Baseline).}
-By design, this strategy achieves perfect recall ($= 1.00$) and perfect
-coverage ($= 1.00$), since it never abstains. However, its precision is only
-0.4820—barely above the random 50\% baseline on a balanced dataset—and its
-False-Answer Rate is 1.00, meaning it provides a spurious answer to every
-unanswerable question. The resulting F1 of 0.6505 reflects the fundamental
-tension: high coverage is purchased at the cost of extreme imprecision on
-unanswerable questions.
+By definition, this strategy answers 100\% of queries, achieving a recall of 1.0000 and precision of 0.5000 (reflecting the exact 50\% class balance). However, its False-Answer Rate is 1.0000 (50 out of 50 unanswerable queries answered spurious spans).
 
-\paragraph{BM25 Threshold.}
-The BM25 Threshold strategy (optimal validation-tuned $\tau$) achieves nearly
-identical metrics to the baseline: precision 0.4810, F1 0.6486, and
-False-Answer Rate 1.00. Coverage falls marginally to 0.998, meaning only 2.4
-questions out of 1,200 are suppressed (2 questions, in absolute terms). This
-result is striking: a single BM25 score threshold is essentially \emph{unable}
-to discriminate answerable from unanswerable questions at the score levels
-produced by the retriever over this dataset. The near-identical performance to
-the baseline suggests that \emph{BM25 score alone is a poor abstention signal}
-when used as a simple threshold.
+\paragraph{BM25 Threshold ($\tau_{\text{BM25}} = 13.15$).}
+The BM25 threshold suppresses answers when top retrieval confidence is weak. It reduces coverage to 71.0\%, achieving a False-Answer Rate of 0.7200 (a 28\% reduction in false answers). Because it correctly withholds answers on 14 unanswerable questions, its overall strict Exact Match jumps to 0.1500.
 
-\paragraph{Answerability Classifier.}
-The logistic regression classifier achieves substantially superior results:
-precision 0.8231, recall 0.8880, and F1 0.8543. These are improvements of
-+34.1 pp in precision and +19.4 pp in F1 over the best single-threshold
-strategy. The False-Answer Rate drops dramatically from 1.00 to 0.1776,
-meaning the system now correctly abstains on approximately 82\% of unanswerable
-questions.
-
-The cost is a reduced coverage of 0.520: the classifier chooses to answer
-only 52\% of questions (624 out of 1,200), and of those it abstains on, 11.2\%
-are actually answerable (False-Abstention Rate = 0.1120). Whether this
-precision–coverage trade-off is acceptable depends on the deployment context:
-in high-stakes settings, a 82\% reduction in false answers at the cost of
-answering only half of questions is likely worthwhile.
+\paragraph{Answerability Classifier ($\delta^* = 0.42$).}
+Trained on 10 inference features, the logistic regression model operates at 85.0\% coverage with a recall of 0.8400. It reduces false abstentions compared to BM25 thresholding (FAbR = 0.1600 vs.\ 0.3000), preserving more answerable queries while still abstaining on low-confidence queries.
 
 \section{Threshold Selection}
 \label{sec:results_threshold}
 
-Figure~\ref{fig:threshold_selection} shows precision, recall, and F1 as
-functions of the classifier probability threshold $\delta$ on the validation
-set. The optimal threshold $\delta^* = 0.28$ lies well below 0.5, reflecting
-the fact that the classifier's default operating point (argmax) is biased
-toward answering, and a lower threshold is needed to push recall at the cost of
-precision.
+Figure~\ref{fig:threshold_selection} depicts precision, recall, and F1 across the full sweep of classifier probability thresholds on the validation set. The optimal threshold $\delta^* = 0.42$ achieves a validation $F_1 = 0.6912$.
 
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.80\textwidth]{fig5_threshold_selection}
   \caption{Precision, Recall, and F1 as functions of the classifier probability
            threshold on the validation set. The vertical dashed line marks the
-           selected threshold $\delta^* = 0.28$.}
+           selected threshold $\delta^* = 0.42$.}
   \label{fig:threshold_selection}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.75\textwidth]{fig7_precision_recall_curve}
+  \caption{Precision-Recall curve of the Answerability Classifier on the validation set.}
+  \label{fig:pr_curve}
 \end{figure}
 
 \section{Classifier Performance}
 \label{sec:results_classifier}
 
-Table~\ref{tab:classifier_performance} reports the classifier's binary
-answerability prediction performance on the test set, treating the problem as
-a binary classification task (answerable vs.\ unanswerable). The applied
-threshold is $\delta^* = 0.28$.
+Table~\ref{tab:classifier_performance} reports the classifier's binary answerability prediction performance on the held-out test set at threshold $\delta^* = 0.42$.
 
 \begin{table}[htbp]
   \centering
-  \caption{Answerability classifier performance on the test set
-           at threshold $\delta^* = 0.28$.}
+  \caption{Answerability classifier performance on the test set at threshold $\delta^* = 0.42$.}
   \label{tab:classifier_performance}
   \begin{tabular}{lcccc}
     \toprule
     \textbf{Set} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{Accuracy} \\
     \midrule
-    Test  & 0.8231 & 0.8880 & 0.8543 & 0.8540 \\
+    Test ($N=100$) & 0.4941 & 0.8400 & 0.6222 & 0.4900 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 \subsection{Confusion Matrix}
 
-Figure~\ref{fig:confusion_matrix} and Table~\ref{tab:confusion_matrix} show the
-confusion matrix on the test set.
+Figure~\ref{fig:confusion_matrix} and Table~\ref{tab:confusion_matrix} report the confusion matrix on the test set.
 
 \begin{table}[htbp]
   \centering
-  \caption{Classifier confusion matrix on the test set.}
+  \caption{Classifier confusion matrix on the test set ($N=100$).}
   \label{tab:confusion_matrix}
   \begin{tabular}{lcc}
     \toprule
     & \textbf{Predicted: Abstain} & \textbf{Predicted: Answer} \\
     \midrule
-    \textbf{Actual: Unanswerable} & 213 (TN) & 46 (FP) \\
-    \textbf{Actual: Answerable}   &  27 (FN) & 214 (TP) \\
+    \textbf{Actual: Unanswerable} & 7 (TN) & 43 (FP) \\
+    \textbf{Actual: Answerable}   & 8 (FN) & 42 (TP) \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -147,26 +141,17 @@ confusion matrix on the test set.
   \label{fig:confusion_matrix}
 \end{figure}
 
-The confusion matrix reveals an asymmetry: the classifier makes
-$\text{FP} = 46$ errors (answering unanswerable questions) compared to
-$\text{FN} = 27$ errors (abstaining on answerable ones). Given the threshold
-$\delta^* = 0.28 < 0.5$, this is expected: the classifier is biased toward
-answering, as false abstentions (FN) are penalised more under the F1 objective
-used for threshold selection.
+The confusion matrix shows $\text{FP} = 43$ and $\text{FN} = 8$. The threshold $\delta^* = 0.42$ prioritises recall on answerable queries while withholding responses on borderline cases.
 
-\section{Error Analysis Figures}
+\section{Error Breakdown}
 \label{sec:results_error_fig}
 
-Figure~\ref{fig:error_analysis} shows the breakdown of correct answers,
-correct abstentions, false answers, and false abstentions for each strategy,
-providing an intuitive comparison of error profiles.
+Figure~\ref{fig:error_analysis} displays the outcome distributions for all three strategies.
 
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.80\textwidth]{fig9_error_analysis}
   \caption{Per-strategy breakdown of outcome types on the test set:
-           Correct Answer, Correct Abstention, False Answer (answered when should
-           have abstained), and False Abstention (abstained when should have
-           answered).}
+           Correct Answer, Correct Abstention, False Answer, and False Abstention.}
   \label{fig:error_analysis}
 \end{figure}

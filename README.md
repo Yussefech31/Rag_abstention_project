@@ -43,8 +43,8 @@ $$\text{Trade-off:} \quad \text{Coverage (answering queries)} \iff \text{Precisi
 
 We formulate and evaluate three distinct operational strategies on SQuAD 2.0:
 1. **Always Answer (Baseline):** The conventional RAG pipeline without abstention mechanism.
-2. **BM25 Retrieval Thresholding:** Abstention triggered when the maximum retrieval similarity score falls below a tuned threshold $\tau_{\text{retrieval}}$.
-3. **Multi-Feature Answerability Classifier:** A trained classification pipeline combining 11 retrieval and reader uncertainty signals to predict question answerability before output generation.
+2. **BM25 Retrieval Thresholding:** Abstention triggered when the top retrieval similarity score falls below a tuned cutoff threshold $\tau_{\text{BM25}} = 13.15$.
+3. **Multi-Feature Answerability Classifier:** A trained classification pipeline combining 10 inference-available retrieval and reader uncertainty signals to predict question answerability before output generation (tuned threshold $\tau = 0.42$).
 
 ---
 
@@ -100,7 +100,7 @@ The end-to-end pipeline decomposes into five tightly coupled stages:
                      │       [Reader Features]
                      ▼               ▼
              ┌───────────────────────────────┐
-             │ 11-Feature Vector Extraction  │
+             │ 10-Feature Vector Extraction  │
              └───────────────┬───────────────┘
                              │
                              ▼
@@ -109,7 +109,7 @@ The end-to-end pipeline decomposes into five tightly coupled stages:
              │   (StandardScaler + LogReg)   │
              └───────────────┬───────────────┘
                              │
-               P(is_answerable) >= 0.28 ?
+               P(is_answerable) >= 0.42 ?
                              │
               ┌──────────────┴──────────────┐
               │                             │
@@ -125,7 +125,7 @@ The end-to-end pipeline decomposes into five tightly coupled stages:
 
 ## 🔍 Engineered Features
 
-The classifier uses 11 operationalized features extracted from the retrieval step and neural reader output:
+The classifier uses **10 inference-available features** extracted from the retrieval stage and neural reader:
 
 | Feature Name | Category | Type | Description |
 | :--- | :--- | :--- | :--- |
@@ -133,13 +133,14 @@ The classifier uses 11 operationalized features extracted from the retrieval ste
 | `second_bm25_score` | Retrieval | Float | Score of the second highest ranked candidate passage |
 | `bm25_score_gap` | Retrieval | Float | Score margin: $\text{top\_bm25\_score} - \text{second\_bm25\_score}$ |
 | `mean_topk_bm25` | Retrieval | Float | Average retrieval score across all $k=5$ passages |
-| `source_passage_retrieved` | Retrieval | Binary | Whether the original gold article context appears in top-$k$ |
 | `qa_score` | Reader | Float | Confidence logit / softmax probability of the top extracted span |
 | `qa_no_answer_probability` | Reader | Float | Probability assigned by RoBERTa to the empty / impossible span |
 | `predicted_answer_length` | Reader | Integer | Whitespace word count of the extracted span |
 | `answer_nonempty` | Reader | Binary | Boolean flag indicating whether the predicted answer string is non-empty |
 | `question_length` | Query | Integer | Whitespace-delimited word count of the input question |
 | `question_token_count` | Query | Integer | Count of unique alphanumeric tokens in the question |
+
+> **Feature Parity & Leakage Prevention:** `source_passage_retrieved` (whether the original gold Wikipedia paragraph ID was retrieved) was **strictly removed** from the classifier's predictive feature set. Because gold paragraph IDs do not exist for new user questions at runtime, including it would introduce feature leakage. It is retained solely for offline retrieval diagnostics.
 
 ---
 
@@ -149,10 +150,11 @@ The classifier uses 11 operationalized features extracted from the retrieval ste
 2. **Leak-Free Article-Level Splitting:**
    - Standard random question splitting introduces severe **data leakage**; queries from the same Wikipedia article share passages, artificially inflating retrieval scores.
    - We implement strict **article-level stratified partitioning**: all questions and contexts belonging to an article are restricted to a single split.
-3. **Partition Sizes:**
-   - **Train:** 5,600 questions (2,800 answerable / 2,800 unanswerable — 50%/50%)
-   - **Validation:** 1,200 questions (600 answerable / 600 unanswerable — 50%/50%)
-   - **Test:** 1,200 questions (600 answerable / 600 unanswerable — 50%/50%)
+3. **Partition Sizes (Maximum 500 Examples Total):**
+   - **Train:** 300 questions (150 answerable / 150 unanswerable — 50%/50%; 176 unique articles)
+   - **Validation:** 100 questions (50 answerable / 50 unanswerable — 50%/50%; 61 unique articles)
+   - **Test:** 100 questions (50 answerable / 50 unanswerable — 50%/50%; 55 unique articles)
+   - **Random Seed:** Fixed seed 42; 0 article overlap between train, val, and test.
 4. **Classifier Pipeline:**
    ```python
    Pipeline([
@@ -161,7 +163,8 @@ The classifier uses 11 operationalized features extracted from the retrieval ste
        ('classifier', LogisticRegression(max_iter=2000, class_weight='balanced', random_state=42))
    ])
    ```
-   - Tuned decision threshold $\tau = 0.28$ maximizes positive-class $F_1$ on the validation set.
+   - Tuned decision threshold $\tau = 0.42$ maximizes positive-class $F_1$ on validation (validation $F_1 = 0.6912$).
+   - BM25 cutoff threshold $\tau_{\text{BM25}} = 13.15$ tuned on validation data.
 
 ---
 
@@ -259,7 +262,7 @@ This launches a browser interface where you can:
 - Select curated answerable and adversarial unanswerable test queries (or enter custom questions).
 - Interactively switch strategies (`Answerability Classifier`, `BM25 Threshold`, `Always Answer`).
 - Adjust the decision threshold slider $\tau \in [0.05, 0.95]$ in real time.
-- Inspect the 11 engineered features and candidate retrieved passages.
+- Inspect the 10 engineered features and candidate retrieved passages.
 
 ### 2. Running the Experimental Notebooks
 Launch Jupyter Lab or Jupyter Notebook:
@@ -268,7 +271,13 @@ jupyter lab
 ```
 Execute the notebooks in sequence from `01_dataset_exploration.ipynb` to `09_error_analysis.ipynb` to reproduce data splitting, indexing, feature extraction, classifier training, and final test set evaluation.
 
-### 3. Generating Scientific Figures
+### 3. Running Automated Tests
+The repository includes a comprehensive unit test suite covering feature extraction, pipeline inference, threshold gating, empty retrieval handling, and evaluation metrics:
+```bash
+pytest tests
+```
+
+### 4. Generating Scientific Figures
 To recreate all publication figures (300 DPI) into `results/figures/`:
 ```bash
 python generate_figures.py
@@ -298,7 +307,7 @@ The project generates high-resolution analytical figures:
 - **`fig2_dataset_distribution.png`**: Stratified article-level split distribution.
 - **`fig3_bm25_score_distribution.png`**: Score distribution overlap between answerable and unanswerable queries.
 - **`fig4_bm25_scores_per_split.png`**: Consistency of retrieval scores across Train, Validation, and Test.
-- **`fig5_threshold_selection.png`**: Validation grid search for optimal decision threshold $\tau = 0.28$.
+- **`fig5_threshold_selection.png`**: Validation grid search for optimal decision threshold $\tau = 0.42$.
 - **`fig6_strategy_comparison.png`**: Precision, Recall, F1, and Coverage comparison across strategies.
 - **`fig7_precision_recall_curve.png`**: PR-AUC trajectory of the selective classifier.
 - **`fig8_confusion_matrix.png`**: Test set confusion matrix showing true vs. predicted answerability.

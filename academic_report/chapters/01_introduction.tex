@@ -54,7 +54,7 @@ This work makes the following contributions:
 
 \begin{enumerate}
   \item \textbf{Systematic feature engineering for answerability.}  We identify
-        and extract eleven features from BM25 retrieval and RoBERTa
+        and extract ten inference-available features from BM25 retrieval and RoBERTa
         reader outputs that jointly characterise the likelihood that a question
         is answerable from the retrieved context.
 
@@ -84,12 +84,12 @@ standard RAG behaviour and sets the precision/coverage upper and lower bounds,
 respectively.
 
 \paragraph{Strategy 2 — BM25 Threshold.}
-If the BM25 score of the top-retrieved passage exceeds a threshold $\tau$
+If the BM25 score of the top-retrieved passage exceeds a threshold $\tau_{\text{BM25}}$
 (tuned on the validation set by maximising F1), the system answers; otherwise
 it abstains. This strategy leverages a single, interpretable retrieval signal.
 
 \paragraph{Strategy 3 — Answerability Classifier.}
-A logistic regression model is trained on eleven features drawn from BM25
+A logistic regression model is trained on ten inference-available features drawn from BM25
 retrieval and reader outputs. It predicts a probability of answerability; if
 this probability exceeds a threshold (again tuned on validation), the system
 answers. This strategy combines complementary signals and can capture

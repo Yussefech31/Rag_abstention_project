@@ -16,17 +16,17 @@ are interpretable without correction for class imbalance.
 
 \begin{table}[htbp]
   \centering
-  \caption{Dataset split statistics for SQuAD~2.0 (article-level split).}
+  \caption{Dataset split statistics for SQuAD~2.0 (article-level split, seed 42).}
   \label{tab:dataset_stats}
   \begin{tabular}{lrrrr}
     \toprule
-    \textbf{Split} & \textbf{Total} & \textbf{Answerable} & \textbf{Unanswerable} & \textbf{Balance} \\
+    \textbf{Split} & \textbf{Total} & \textbf{Answerable} & \textbf{Unanswerable} & \textbf{Articles} \\
     \midrule
-    Train      & 5{,}600 & 2{,}800 & 2{,}800 & 50\% / 50\% \\
-    Validation & 1{,}200 & 600     & 600     & 50\% / 50\% \\
-    Test       & 1{,}200 & 600     & 600     & 50\% / 50\% \\
+    Train      & 300 & 150 & 150 & 176 \\
+    Validation & 100 &  50 &  50 &  61 \\
+    Test       & 100 &  50 &  50 &  55 \\
     \midrule
-    \textbf{Total} & \textbf{8{,}000} & \textbf{4{,}000} & \textbf{4{,}000} & 50\% / 50\% \\
+    \textbf{Total} & \textbf{500} & \textbf{250} & \textbf{250} & \textbf{292} \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -104,14 +104,14 @@ unanswerable questions (low score) to highly confident extractable answers
 
 \begin{itemize}
   \item \textbf{Model:} \texttt{LogisticRegression} (\texttt{sklearn}).
-  \item \textbf{Solver:} LBFGS, maximum 1,000 iterations.
+  \item \textbf{Solver:} LBFGS, maximum 2,000 iterations, balanced class weighting.
   \item \textbf{Regularisation:} L2, $C = 1.0$.
-  \item \textbf{Pre-processing:} \texttt{SimpleImputer} (mean strategy) $\rightarrow$
+  \item \textbf{Pre-processing:} \texttt{SimpleImputer} (median strategy) $\rightarrow$
         \texttt{StandardScaler}.
-  \item \textbf{Features:} 11 (see Table~\ref{tab:features}).
-  \item \textbf{Training data:} 5,600 training questions.
+  \item \textbf{Features:} 10 inference features (see Table~\ref{tab:features}).
+  \item \textbf{Training data:} 300 training questions.
   \item \textbf{Threshold search:} $\delta \in [0.01, 0.99]$ step 0.01 on
-        validation set; best $\delta^* = 0.28$.
+        validation set (100 questions); best $\delta^* = 0.42$ ($\tau_{\text{BM25}} = 13.15$).
 \end{itemize}
 
 \section{Evaluation Protocol}

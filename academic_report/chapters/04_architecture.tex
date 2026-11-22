@@ -69,7 +69,7 @@ shows the full pipeline as a TikZ diagram.
     \node[block,    right=of retrieval](reader){RoBERTa\\Reader};
 
     %% Feature extraction below retrieval
-    \node[block,    below=1.5cm of retrieval](features){Feature\\Extraction\\(11 features)};
+    \node[block,    below=1.5cm of retrieval](features){Feature\\Extraction\\(10 features)};
 
     %% Abstention decision
     \node[decision, below=1.5cm of reader](abstain){Abstention\\Strategy};
@@ -96,7 +96,7 @@ shows the full pipeline as a TikZ diagram.
   \end{tikzpicture}
   \caption{End-to-end RAG-with-abstention pipeline. The question is used to
            retrieve passages via BM25, the top-1 passage is passed to the
-           RoBERTa reader, and the combined 11-dimensional feature vector is
+           RoBERTa reader, and the combined 10-dimensional feature vector is
            evaluated by the abstention strategy to decide whether to answer or
            abstain.}
   \label{fig:architecture}
@@ -112,11 +112,12 @@ files after each pipeline stage, enabling reproducibility and offline analysis.
 
 \paragraph{BM25 $\rightarrow$ Features.}
 After retrieval, the \texttt{top\_bm25\_score}, \texttt{second\_bm25\_score},
-\texttt{bm25\_score\_gap}, \texttt{mean\_topk\_bm25}, and
-\texttt{source\_passage\_retrieved} features are computed directly from the
-ranked list of (score, passage) pairs. These five values, together with the
+\texttt{bm25\_score\_gap}, and \texttt{mean\_topk\_bm25}
+features are computed directly from the
+ranked list of (score, passage) pairs. These four values, together with the
 question metadata features (\texttt{question\_length}, \texttt{question\_token\_count}),
-are available before the reader is invoked.
+are available before the reader is invoked. (Note that \texttt{source\_passage\_retrieved}
+is preserved only for offline retrieval diagnostics and omitted from classification).
 
 \paragraph{Reader $\rightarrow$ Features.}
 The reader's outputs (\texttt{qa\_score}, \texttt{qa\_no\_answer\_probability},
@@ -124,15 +125,16 @@ The reader's outputs (\texttt{qa\_score}, \texttt{qa\_no\_answer\_probability},
 the feature vector after the reader processes the top-1 passage.
 
 \paragraph{Classifier Training.}
-During training, the full 11-feature vectors are labelled with the ground-truth
+During training, the 10-feature vectors are labelled with the ground-truth
 answerability flag and used to fit the logistic regression classifier. The
 trained model and its fitted \texttt{StandardScaler}+\texttt{SimpleImputer}
 pre-processors are saved to disk and loaded at test time.
 
 \paragraph{Threshold Selection.}
-Both the BM25 threshold $\tau$ and the classifier threshold $\delta$ are
+Both the BM25 threshold $\tau_{\text{BM25}}$ and the classifier threshold $\delta$ are
 selected by sweeping candidate values on the validation set, measuring F1, and
-picking the maximiser. The best classifier threshold found is $\delta^* = 0.28$.
+picking the maximiser. The best classifier threshold found is $\delta^* = 0.42$
+and the optimal BM25 threshold is $\tau_{\text{BM25}} = 13.15$.
 Only then are the thresholds applied to the held-out test set.
 
 \section{Design Principles}

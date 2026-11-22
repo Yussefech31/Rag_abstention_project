@@ -12,13 +12,13 @@ In this research project, we addressed the critical vulnerability of Retrieval-A
 Our key findings and contributions are summarised as follows:
 
 \begin{enumerate}
-  \item \textbf{Empirical Refutation of Retrieval-Only Gating:} We demonstrated that gating abstention on top BM25 scores alone is largely ineffective ($F_1 = 0.6486$, virtually identical to the Always Answer baseline of $0.6505$). Lexical retrieval metrics measure term matching rather than factual sufficiency, failing to separate answerable from unanswerable queries designed with high surface overlap.
+  \item \textbf{Empirical Analysis of Retrieval-Only Gating:} We demonstrated that gating abstention on top BM25 scores alone provides a crude filter ($\tau_{\text{BM25}} = 13.15$): while it reduces the False-Answer Rate from $1.0000$ to $0.7200$ and boosts overall Exact Match to $0.1500$, it suffers from a high False-Abstention Rate ($0.3000$).
   
-  \item \textbf{Superiority of Combined Feature Classifiers:} By engineering an 11-dimensional feature vector combining sparse retrieval dynamics, span lengths, and reader confidence probabilities, a lightweight Logistic Regression classifier achieved an answerability $F_1$ score of $\mathbf{0.8543}$, with precision of $\mathbf{0.8231}$ and recall of $\mathbf{0.8880}$ on held-out test data.
+  \item \textbf{Multi-Signal Feature Integration:} By engineering a 10-dimensional inference feature vector combining sparse retrieval dynamics, span lengths, and reader confidence probabilities, a lightweight Logistic Regression classifier achieved an operating point of $85.0\%$ coverage and $84.0\%$ recall on held-out test data, halving false abstentions ($0.1600$).
   
-  \item \textbf{Dramatic Reduction of Hallucination Risk:} The Answerability Classifier reduced the false-answer rate from $1.0000$ to $\mathbf{0.1776}$, while concurrently increasing the exact match (EM) of accepted answers from $0.6432$ to $\mathbf{0.7103}$ and token-$F_1$ from $0.7369$ to $\mathbf{0.8130}$.
+  \item \textbf{Mitigation of Overconfident Predictions:} The Answerability Classifier prevents uncalibrated spans from being emitted when reader uncertainty is high, providing a disciplined selective prediction layer before answer delivery.
   
-  \item \textbf{Comprehensive Pipeline Implementation:} We provided a fully reproducible, leak-free pipeline implementing article-grouped data splitting, BM25 indexing, RoBERTa span extraction, validation-driven threshold optimization, and an in-depth error taxonomy.
+  \item \textbf{Comprehensive Pipeline Implementation:} We provided a fully reproducible, leak-free pipeline implementing article-grouped data splitting across 500 balanced examples, BM25 indexing, RoBERTa span extraction, validation-driven threshold optimization, and an in-depth error taxonomy.
 \end{enumerate}
 
 \section{Limitations}

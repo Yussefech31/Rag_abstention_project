@@ -30,16 +30,16 @@ To prevent this, we perform an \emph{article-level} split: all questions
 belonging to a given article are assigned exclusively to one split. We
 stratify on article-level answerability to maintain an equal proportion of
 answerable and unanswerable questions in each split. The final partition
-contains 8,000 questions distributed as follows (see
+contains 500 questions distributed as follows (see
 Table~\ref{tab:dataset_stats} and Figure~\ref{fig:dataset_distribution}):
 
 \begin{itemize}
-  \item \textbf{Train:} 5,600 questions — 2,800 answerable, 2,800 unanswerable
-        (50\% / 50\%, perfectly balanced).
-  \item \textbf{Validation:} 1,200 questions — 600 answerable, 600 unanswerable
-        (50\% / 50\%, perfectly balanced).
-  \item \textbf{Test:} 1,200 questions — 600 answerable, 600 unanswerable
-        (50\% / 50\%, perfectly balanced).
+  \item \textbf{Train:} 300 questions — 150 answerable, 150 unanswerable
+        (50\% / 50\%, perfectly balanced; 176 unique articles).
+  \item \textbf{Validation:} 100 questions — 50 answerable, 50 unanswerable
+        (50\% / 50\%, perfectly balanced; 61 unique articles).
+  \item \textbf{Test:} 100 questions — 50 answerable, 50 unanswerable
+        (50\% / 50\%, perfectly balanced; 55 unique articles).
 \end{itemize}
 
 The test set is kept entirely unseen during hyper-parameter tuning; all
@@ -66,8 +66,8 @@ feature computation.
 
 \subsection{Retrieval Features}
 
-From the BM25 retrieval results for each question, we extract the following
-five features:
+From the BM25 retrieval results for each question, we extract four inference-ready
+features:
 
 \begin{description}
   \item[\texttt{top\_bm25\_score}] The BM25 score of the first-ranked passage.
@@ -86,13 +86,16 @@ five features:
         the top-$k = 5$ retrieved passages. A high mean suggests that the query
         matches many passages, which may indicate a broad topic or retrieval
         ambiguity.
-
-  \item[\texttt{source\_passage\_retrieved}] A binary flag: 1 if the
-        ground-truth source passage (for answerable questions) appears in the
-        top-$k$ results; 0 otherwise. At test time, this feature is unavailable
-        without labels; it is included for analysis purposes and provided to the
-        classifier during training, where labels are known.
 \end{description}
+
+\paragraph{Offline Diagnostic Feature (\texttt{source\_passage\_retrieved}).}
+In addition to the operational features above, we compute a binary indicator
+whether the original SQuAD source passage appears in the top-$k$ retrieved IDs.
+Critically, because the true source passage ID is an artifact of the benchmark
+annotation and is completely unavailable for new user questions at test time,
+this feature is \emph{strictly excluded} from the classifier's predictive
+feature set to eliminate data leakage and guarantee training/inference parity.
+It is retained solely for offline retrieval diagnostics.
 
 \section{QA Reader}
 \label{sec:meth_reader}
@@ -183,7 +186,7 @@ relevant information and the system should abstain.
 \label{sec:meth_classifier}
 
 The Answerability Classifier is a logistic regression model trained on the
-eleven features enumerated in Table~\ref{tab:features}. It outputs a probability
+ten inference-ready features enumerated in Table~\ref{tab:features}. It outputs a probability
 $\hat{p}(x)$ that the question is answerable given the retrieved context. The
 selection function is:
 
@@ -197,22 +200,21 @@ selection function is:
 \end{equation}
 
 where $\delta$ is a probability threshold tuned on the validation set by
-maximising validation F1. The optimal threshold found is $\delta^* = 0.28$.
+maximising validation F1. The optimal threshold found is $\delta^* = 0.42$.
 
 \subsubsection{Pre-processing Pipeline}
 
 Training instances are drawn from the training split. All numerical features
 are standardised with \texttt{sklearn}'s \texttt{StandardScaler}; missing values
 (which arise when fewer than $k$ passages are retrieved) are imputed with
-\texttt{SimpleImputer} using the mean strategy. The two steps are composed into
-a \texttt{Pipeline}: \texttt{SimpleImputer} $\rightarrow$ \texttt{StandardScaler}
-$\rightarrow$ \texttt{LogisticRegression}.
+\texttt{SimpleImputer} using the median strategy. The pipeline is composed as:
+\texttt{SimpleImputer} $\rightarrow$ \texttt{StandardScaler} $\rightarrow$ \texttt{LogisticRegression(class\_weight='balanced')}.
 
 \subsubsection{Feature Set}
 
 \begin{table}[htbp]
   \centering
-  \caption{Complete feature set for the Answerability Classifier.}
+  \caption{Inference feature set for the Answerability Classifier (10 features).}
   \label{tab:features}
   \begin{tabular}{lll}
     \toprule
@@ -222,24 +224,22 @@ $\rightarrow$ \texttt{LogisticRegression}.
     \texttt{second\_bm25\_score}     & BM25 & Score of rank-2 retrieved passage \\
     \texttt{bm25\_score\_gap}        & BM25 & Rank-1 minus rank-2 BM25 scores \\
     \texttt{mean\_topk\_bm25}        & BM25 & Mean score over top-$k$ passages \\
-    \texttt{source\_passage\_retrieved} & BM25 & 1 if ground-truth passage retrieved \\
-    \texttt{question\_length}        & Query & Character length of question \\
-    \texttt{predicted\_answer\_length} & Reader & Character length of predicted span \\
     \texttt{qa\_score}               & Reader & Reader confidence in answer span \\
     \texttt{qa\_no\_answer\_probability} & Reader & Reader no-answer probability \\
-    \texttt{question\_token\_count}  & Query & Token count of question \\
+    \texttt{predicted\_answer\_length} & Reader & Character length of predicted span \\
     \texttt{answer\_nonempty}        & Reader & 1 if reader returned non-empty answer \\
+    \texttt{question\_length}        & Query & Character length of question \\
+    \texttt{question\_token\_count}  & Query & Token count of question \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 \subsubsection{Training and Threshold Tuning}
 
-Logistic regression is trained with L2 regularisation ($C = 1.0$, default) and
-the LBFGS solver. After training, we sweep $\delta$ over $[0.01, 0.99]$ in steps
-of $0.01$ on the validation set, computing precision, recall, and F1 for each
-candidate threshold. The threshold that maximises validation F1 is retained as
-$\delta^* = 0.28$ and applied to the test set.
+Logistic regression is trained with balanced class weights and L2 regularisation.
+After training on the 300 training questions, we sweep $\delta$ over $[0.01, 0.99]$ in steps
+of $0.01$ on the 100 validation questions, computing precision, recall, and F1. The threshold
+that maximises validation F1 is retained as $\delta^* = 0.42$ (Validation F1 = 0.6912) and applied to the test set.
 
 \subsection{Evaluation Metrics}
 \label{sec:meth_metrics}

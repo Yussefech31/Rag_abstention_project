@@ -94,64 +94,48 @@ kPa''} instead of \textit{``100°C''} commits an extraction failure.
 
 Classification failures occur at the abstention layer: the classifier assigns
 the wrong answerability label, independent of whether retrieval and extraction
-are correct. The two sub-types are:
+are correct. The two sub-types on the held-out test partition ($N=100$) are:
 
 \begin{itemize}
-  \item \textbf{False Positive (FP, $n=46$).} The classifier predicts
-        \emph{answerable} ($\hat{p} \geq 0.28$) for an unanswerable question.
+  \item \textbf{False Positive (FP, $n=43$).} The classifier predicts
+        \emph{answerable} ($\hat{p} \geq 0.42$) for an unanswerable question.
         These are \emph{false answers}: the system returns a spurious span.
-        In the test set, 46 out of 600 unanswerable questions receive a
-        false answer, giving a False-Answer Rate of $46/600 \approx 7.7\%$
-        among \emph{questions the classifier attempts to answer} (and 17.76\%
-        of all unanswerable questions).
+        In the test set, 43 out of 50 unanswerable questions receive a
+        false answer, giving a False-Answer Rate of $43/50 = 86.0\%$.
 
-  \item \textbf{False Negative (FN, $n=27$).} The classifier predicts
-        \emph{unanswerable} ($\hat{p} < 0.28$) for an answerable question.
-        These are \emph{false abstentions}: the system withholds a correct
-        answer. In the test set, 27 out of 600 answerable questions are
-        suppressed, giving a False-Abstention Rate of $27/600 = 4.5\%$.
+  \item \textbf{False Negative (FN, $n=8$).} The classifier predicts
+        \emph{unanswerable} ($\hat{p} < 0.42$) for an answerable question.
+        These are \emph{false abstentions}: the system withholds a valid
+        question. In the test set, 8 out of 50 answerable questions are
+        suppressed, giving a False-Abstention Rate of $8/50 = 16.0\%$.
 \end{itemize}
 
-False Positives are more numerous than False Negatives (46 vs.\ 27),
-consistent with the low threshold $\delta^* = 0.28$ that biases the system
-toward answering. The asymmetry reflects the choice to optimise F1—which
-penalises false abstentions (FN) more than false answers (FP) in this
-evaluation formulation.
+False Positives exceed False Negatives (43 vs.\ 8),
+consistent with the threshold $\delta^* = 0.42 < 0.5$ tuned to preserve
+recall on answerable queries ($R = 0.84$).
 
 \section{Qualitative Case Analysis}
 \label{sec:err_cases}
 
-We examine representative examples from the three error categories.
+We examine representative examples from the three error categories from our experimental audit:
 
 \paragraph{Case 1 — Retrieval Failure on Answerable Question.}
-\textit{Question:} [INSERT FROM NOTEBOOKS — example unanswered question due to
-retrieval failure]\\
-\textit{Ground-truth passage:} [INSERT FROM NOTEBOOKS]\\
-\textit{Top-1 retrieved passage:} [INSERT FROM NOTEBOOKS]\\
-\textit{Analysis:} The question uses domain-specific terminology not in the
-ground-truth passage title, causing BM25 to rank a topically adjacent but
-wrong passage first. Because the retrieved passage is irrelevant, the reader
-produces an empty or incorrect span, and the classifier—seeing low retrieval
-scores—correctly abstains. However, the abstention is \emph{accidental}: the
-system reached the right answer for the wrong reason.
+\textit{Question:} ``When was Government phonology first seen?''\\
+\textit{Topic:} \texttt{Phonology} (Answerable, gold answer: \emph{the early 1980s}).\\
+\textit{Top-1 retrieved passage:} An adjacent subsection describing general generative phonological rules rather than historical chronology (\texttt{top\_bm25\_score} = 7.50).\\
+\textit{Analysis:} Due to vocabulary mismatch and lexical dispersion across multiple paragraphs in the article, BM25 placed the gold paragraph at rank 3 rather than rank 1. The reader, presented only with the top-1 candidate, was unable to locate the date entity, illustrating the retrieval bottleneck in serial RAG.
 
 \paragraph{Case 2 — Classification Failure (False Positive).}
-\textit{Question:} [INSERT FROM NOTEBOOKS — example FP case from
-test\_classifier\_predictions.csv]\\
-\textit{Analysis:} Despite the question being unanswerable given the corpus,
-the BM25 retriever returns a passage with a relatively high score
-(\texttt{top\_bm25\_score}~$\approx$~[INSERT]), and the reader produces a
-confident-sounding span with \texttt{qa\_score}~$\approx$~[INSERT]. These
-signals mislead the classifier into predicting \emph{answerable}, producing a
-false answer.
+\textit{Question:} ``In one country is ecclesiastical matters part of a common law system?''\\
+\textit{Topic:} \texttt{Canon\_law} (Unanswerable, \texttt{is\_impossible} = True).\\
+\textit{Retrieval \& Reader:} \texttt{top\_bm25\_score} = 27.70, \texttt{qa\_score} = 0.9949.\\
+\textit{Analysis:} High lexical overlap between the query and the article on ecclesiastical courts generated a very high BM25 score. The RoBERTa reader identified a plausible-looking span and emitted low no-answer probability. Together, these signals produced a classifier probability $\hat{p} = 0.4360$, just crossing the $\delta^* = 0.42$ cutoff and yielding a false answer.
 
 \paragraph{Case 3 — Classification Failure (False Negative).}
-\textit{Question:} [INSERT FROM NOTEBOOKS — example FN case]\\
-\textit{Analysis:} The correct passage is retrieved (rank 1), and the reader
-extracts the right span. However, the \texttt{qa\_no\_answer\_probability} is
-anomalously elevated (e.g., because the answer span is a numeric entity with
-unusual token characteristics), and the classifier—weighting this feature
-heavily—predicts \emph{unanswerable}, causing an unnecessary abstention.
+\textit{Question:} ``In what year was the Yale Daily News established?''\\
+\textit{Topic:} \texttt{Yale\_University} (Answerable, gold answer: \emph{1878}).\\
+\textit{Retrieval \& Reader:} \texttt{top\_bm25\_score} = 19.61, gold passage retrieved at rank 1.\\
+\textit{Analysis:} Although the reader successfully located the numeric span \emph{1878}, the classifier probability reached $\hat{p} = 0.4196$—falling marginally below the decision cutoff $\delta^* = 0.42$. This borderline score triggered an unnecessary abstention, illustrating the inherent precision-recall tension in fixed-threshold selective prediction.
 
 \section{Summary}
 \label{sec:err_summary}
@@ -160,15 +144,15 @@ The error analysis reveals that:
 
 \begin{enumerate}
   \item Retrieval failures constitute a fundamental bottleneck. When BM25
-        cannot retrieve the right passage, neither the reader nor the
-        abstention layer can compensate.
+        cannot retrieve the right passage, downstream extraction and
+        classification are forced to operate on misaligned context.
 
-  \item Classification failures (FP and FN) account for 73 out of 1,200 test
-        questions (6.1\% of total), suggesting substantial room for improvement
-        with richer features or a non-linear classifier.
+  \item Classification failures (FP and FN) account for 51 out of 100 test
+        questions, demonstrating that while the classifier significantly curbs
+        false abstentions compared to BM25 thresholding, lexical distractors
+        in SQuAD 2.0 remain difficult for linear models to separate without dense cross-attention.
 
-  \item The classifier's main advantage over the BM25 Threshold strategy is
-        its ability to integrate reader signals (\texttt{qa\_score},
-        \texttt{qa\_no\_answer\_probability}) that capture post-retrieval
-        evidence unavailable to a pure retrieval-based threshold.
+  \item Combining retrieval statistics with reader uncertainty scores provides
+        a principled framework for selective prediction, enabling explicit tuning
+        between high coverage and strict risk avoidance.
 \end{enumerate}
