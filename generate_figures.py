@@ -24,7 +24,9 @@ ROOT   = r"c:\Users\WIN 11 25H2\Desktop\nlp\Rag_ab"
 RES    = os.path.join(ROOT, "results")
 SPLITS = os.path.join(ROOT, "data", "splits")
 FIG    = os.path.join(RES,  "figures")
+ACAD_FIG = os.path.join(ROOT, "academic_report", "figures")
 os.makedirs(FIG, exist_ok=True)
+os.makedirs(ACAD_FIG, exist_ok=True)
 
 # ── Style ──────────────────────────────────────────────────────────────────────
 try:
@@ -43,7 +45,10 @@ skipped  = []
 
 def savefig(name, fig=None):
     path = os.path.join(FIG, name)
-    (fig or plt).savefig(path, dpi=DPI, bbox_inches="tight")
+    acad_path = os.path.join(ACAD_FIG, name)
+    f = fig or plt.gcf()
+    f.savefig(path, dpi=DPI, bbox_inches="tight")
+    f.savefig(acad_path, dpi=DPI, bbox_inches="tight")
     plt.close("all")
     created.append(name)
     print(f"  ✓ saved {name}")
@@ -99,8 +104,10 @@ except Exception as e:
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n[fig3] BM25 score distribution by answerability …")
 try:
-    vrf = pd.read_csv(os.path.join(RES, "validation_retrieval_features.csv"),
-                      usecols=["is_answerable", "top_bm25_score"])
+    vrf = pd.read_csv(os.path.join(RES, "validation_retrieval_features.csv"))
+    if "is_answerable" not in vrf.columns:
+        v_meta = pd.read_csv(os.path.join(SPLITS, "validation.csv"), usecols=["question_id", "is_answerable"])
+        vrf = vrf.merge(v_meta, on="question_id")
 
     fig, ax = plt.subplots(figsize=FIG_SIZE)
     for flag, label, color in [
@@ -231,6 +238,36 @@ try:
     savefig("fig6_strategy_comparison.png")
 except Exception as e:
     skip("fig6_strategy_comparison.png", str(e))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Figure 7 — Precision-Recall Curve (Answerability Classifier on Test Set)
+# ══════════════════════════════════════════════════════════════════════════════
+print("\n[fig7] Precision-Recall curve …")
+try:
+    from sklearn.metrics import precision_recall_curve, average_precision_score
+    cp = pd.read_csv(os.path.join(RES, "test_classifier_predictions.csv"))
+    te = pd.read_csv(os.path.join(SPLITS, "test.csv"), usecols=["question_id", "is_answerable"])
+    m_pr = cp.merge(te, on="question_id")
+    y_true_pr = m_pr["is_answerable"].astype(int)
+    y_prob_pr = m_pr["classifier_prob"]
+
+    p_curve, r_curve, _ = precision_recall_curve(y_true_pr, y_prob_pr)
+    ap = average_precision_score(y_true_pr, y_prob_pr)
+
+    fig, ax = plt.subplots(figsize=FIG_SIZE)
+    ax.plot(r_curve, p_curve, color="#2563EB", linewidth=2.5, label=f"Classifier PR Curve (AP = {ap:.3f})")
+    ax.axhline(y=y_true_pr.mean(), color="#6B7280", linestyle="--", label=f"Random Baseline ({y_true_pr.mean():.2f})")
+    ax.set_xlabel("Recall", fontsize=13)
+    ax.set_ylabel("Precision", fontsize=13)
+    ax.set_title("Figure 7: Precision-Recall Curve for Answerability", fontsize=14, fontweight="bold")
+    ax.set_xlim(0, 1.02)
+    ax.set_ylim(0, 1.05)
+    ax.legend(fontsize=11)
+    plt.tight_layout()
+    savefig("fig7_precision_recall_curve.png")
+except Exception as e:
+    skip("fig7_precision_recall_curve.png", str(e))
 
 
 # ══════════════════════════════════════════════════════════════════════════════

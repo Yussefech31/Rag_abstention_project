@@ -31,19 +31,18 @@ DEFAULT_MODEL_PATH = PROJECT_ROOT / "models" / "answerability_logreg.joblib"
 DEFAULT_TEST_SPLIT = PROJECT_ROOT / "data" / "splits" / "test.csv"
 DEFAULT_PASSAGES_CLEAN = PROJECT_ROOT / "data" / "processed" / "passages_clean.csv"
 
-# ── Feature Specification (strictly aligned with trained classifier) ───────────
+# ── Feature Specification (strictly aligned with 10 inference-available features) ──
 FEATURES = [
     "top_bm25_score",
     "second_bm25_score",
     "bm25_score_gap",
     "mean_topk_bm25",
-    "source_passage_retrieved",
-    "question_length",
-    "predicted_answer_length",
     "qa_score",
     "qa_no_answer_probability",
-    "question_token_count",
+    "predicted_answer_length",
     "answer_nonempty",
+    "question_length",
+    "question_token_count",
 ]
 
 # ── Tokenization Helpers ───────────────────────────────────────────────────────
@@ -235,13 +234,13 @@ class RAGAbstentionPipeline:
     Complete Retrieval-Augmented QA Pipeline equipped with Selective Prediction.
 
     Supports three decision strategies:
-    - 'classifier': Logistic Regression over 11 features with tuned threshold tau = 0.28
-    - 'bm25_threshold': Simple threshold heuristic on top BM25 retrieval score
+    - 'classifier': Logistic Regression over 10 features with validation-tuned threshold tau = 0.42
+    - 'bm25_threshold': Threshold heuristic on top BM25 retrieval score (tau = 13.15)
     - 'always_answer': Baseline without abstention mechanism
     """
 
-    DEFAULT_CLASSIFIER_THRESHOLD = 0.28
-    DEFAULT_BM25_THRESHOLD = 15.0
+    DEFAULT_CLASSIFIER_THRESHOLD = 0.42
+    DEFAULT_BM25_THRESHOLD = 13.15
 
     def __init__(
         self,
@@ -281,7 +280,8 @@ class RAGAbstentionPipeline:
         gold_passage_id: Optional[str] = None,
     ) -> Tuple[pd.DataFrame, Dict[str, float]]:
         """
-        Extract the 11 engineered features required by the Answerability Classifier.
+        Extract the 10 inference-available features required by the Answerability Classifier.
+        (source_passage_retrieved is excluded from the predictive feature set).
         """
         # Retrieval features
         if retrieved_passages:
@@ -290,19 +290,11 @@ class RAGAbstentionPipeline:
             second_bm25_score = float(scores[1]) if len(scores) > 1 else 0.0
             bm25_score_gap = top_bm25_score - second_bm25_score
             mean_topk_bm25 = float(np.mean(scores))
-            retrieved_ids = {p.paragraph_id for p in retrieved_passages}
-            if gold_passage_id is not None:
-                source_passage_retrieved = 1.0 if str(gold_passage_id) in retrieved_ids else 0.0
-            else:
-                # When gold_passage_id is unknown at test/inference time, SimpleImputer in the pipeline
-                # replaces NaN with the median learned during training (or default 1.0)
-                source_passage_retrieved = np.nan
         else:
             top_bm25_score = 0.0
             second_bm25_score = 0.0
             bm25_score_gap = 0.0
             mean_topk_bm25 = 0.0
-            source_passage_retrieved = np.nan
 
         # Query & Reader features
         q_text = str(question or "")
@@ -320,13 +312,12 @@ class RAGAbstentionPipeline:
             "second_bm25_score": second_bm25_score,
             "bm25_score_gap": bm25_score_gap,
             "mean_topk_bm25": mean_topk_bm25,
-            "source_passage_retrieved": source_passage_retrieved,
-            "question_length": question_length,
-            "predicted_answer_length": predicted_answer_length,
             "qa_score": qa_score,
             "qa_no_answer_probability": qa_no_answer_prob,
-            "question_token_count": question_token_count,
+            "predicted_answer_length": predicted_answer_length,
             "answer_nonempty": answer_nonempty,
+            "question_length": question_length,
+            "question_token_count": question_token_count,
         }
 
         # Build single-row DataFrame with strict column order
